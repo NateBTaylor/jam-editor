@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Jam Editor</title>
+    <link rel="stylesheet" href="style.css" />
+
+
+</head>
+<body>
+    <div id="app">
+        <h1>Jam Editor</h1>
+        <input type="file" accept="video/*" id="videoUploader" />
+        <canvas id="canvas"></canvas>
+  
+        <div id="video-controls">
+            <div id="seekControl">
+                <label>
+                  <input type="range" id="seekSlider" min="0" max="100" value="0" step="0.01">
+                </label>
+                <div id="timeDisplay">00:00 / 00:00</div>
+            </div>
+            <div class="pause-play">
+                <button onclick="video.play()">▶ Play</button>
+                <button onclick="video.pause()">⏸ Pause</button>
+            </div>
+        </div>
+  
+        <div class="visualizer">
+            <div class="mode-picker">
+                <label for="modeSwitch">Mode:</label>
+                <select id="modeSwitch">
+                    <option value="bars">Frequency Bars</option>
+                    <option value="waveform">Waveform</option>
+                    <option value="none">None</option>
+                </select>
+            </div>
+            <div id="colorControl">
+                <label for="colorPicker">Color:</label>
+                <input type="color" id="colorPicker" value="#FD3DB5">
+            </div>
+        </div>
+
+        <div class="toggles">
+            <label for="shakeToggle">
+                <input type="checkbox" id="shakeToggle" unchecked>
+                Enable Shake
+            </label>
+
+            <label for="colorShiftToggle">
+                <input type="checkbox" id="colorShiftToggle" unchecked>
+                Color Shift on Shake
+            </label>
+
+            <label for="wobbleToggle">
+                <input type="checkbox" id="wobbleToggle" unchecked />
+                Enable Wobble
+            </label>
+
+            <label for="pulseToggle">
+                <input type="checkbox" id="pulseToggle" unchecked />
+                Enable Pulse
+            </label>
+        </div>
+
+        <div id="shakeControl">
+            <label for="shakeRange">Shake Sensitivity:
+              <input type="range" id="shakeRange" min="0" max="0.2" step="0.005" value="0.05">
+              <span id="shakeValue">0.05</span>
+            </label>
+        </div>
+
+        <div id="filter-section">
+            <label for="filterMode">Filters:</label>
+            <select id="filterMode">
+                <option value="none">None</option>
+                <option value="glow80s">80s Glow</option>
+                <option value="darkMetal">Dark Metal</option>
+                <option value="retroCamcorder">Retro Camcorder</option>
+                <option value="psychedelicPulse">Psychedelic Pulse</option>
+                <option value="grunge">Grunge</option>
+                <option value="sepiaFilm">Vintage Film</option>
+                <option value="neon">Neon</option>
+                <option value="glitch">Glitch</option>
+                <option value="vhs">VHS Tape</option>
+                <option value="fire">Fire</option>
+            </select>
+        </div>
+
+        <button id="downloadProcessed">⬇ Download</button>
+        <p id="download-p">After pressing download, wait for the video to play through completely.</p>
+
+    </div>
+  
+    <script src="script.js"></script>
+  </body>
+</html>
