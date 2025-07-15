@@ -31,7 +31,14 @@ const offscreenCtx = offscreenCanvas.getContext('2d');
 const MAX_WIDTH = 720;
 const MAX_HEIGHT = 720;
 
-let currentMode = 'bars';
+document.body.addEventListener('click', () => {
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume();
+    }
+  });
+  
+
+let currentMode = 'none';
 
 const modeSwitch = document.getElementById('modeSwitch');
 modeSwitch.addEventListener('change', (e) => {
@@ -150,17 +157,17 @@ function updateTimeDisplay() {
 }
 
 
-function scaleToFit(videoWidth, videoHeight, maxWidth = 640, maxHeight = 480) {
+function scaleToFit(videoWidth, videoHeight) {
     const aspect = videoWidth / videoHeight;
   
     if (videoWidth > videoHeight) {
       // Landscape
-      const width = Math.min(videoWidth, maxWidth);
+      const width = Math.min(videoWidth, MAX_WIDTH);
       const height = width / aspect;
       return { width, height };
     } else {
       // Portrait
-      const height = Math.min(videoHeight, maxHeight);
+      const height = Math.min(videoHeight, MAX_HEIGHT);
       const width = height * aspect;
       return { width, height };
     }
@@ -862,7 +869,87 @@ function initEmbers(count = 100) {
 
 initEmbers()
   
-   
+
+let dreamHue = 0;
+let dreamTime = 0;
+const dreamCanvas = document.createElement('canvas');
+const dreamCtx = dreamCanvas.getContext('2d');
+
+function dreamWarpFilter() {
+  analyser.getByteFrequencyData(frequencyData);
+  const avg = frequencyData.reduce((a, b) => a + b, 0) / frequencyData.length;
+  const pulse = avg / 256; // normalized 0-1 pulse value
+  const intensity = pulse * 5;  // base intensity for waves
+
+  dreamTime += 0.03 + intensity * 0.1;
+
+  dreamCanvas.width = canvas.width;
+  dreamCanvas.height = canvas.height;
+
+  // Draw video frame into dreamCanvas
+  dreamCtx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+  const source = dreamCtx.getImageData(0, 0, canvas.width, canvas.height);
+  const dest = ctx.createImageData(canvas.width, canvas.height);
+
+  const srcData = source.data;
+  const dstData = dest.data;
+  const width = canvas.width;
+  const height = canvas.height;
+
+  // Calculate scale factor for breathing effect: oscillates between 0.95 and 1.05 based on pulse
+  // Adjust multiplier and base to get desired scale range
+  const scaleBase = 1.0;
+  const scaleAmplitude = 0.05;
+  const scale = scaleBase + scaleAmplitude * Math.sin(pulse * Math.PI * 2);
+
+  const centerX = width / 2;
+  const centerY = height / 2;
+
+  for (let y = 0; y < height; y++) {
+    const yWaveOffset = Math.sin((y / 30) + dreamTime) * 10 * intensity;
+    for (let x = 0; x < width; x++) {
+      const xWaveOffset = Math.cos((x / 30) + dreamTime) * 10 * intensity;
+
+      // Apply the original smooth wave warp
+      let warpedX = x + xWaveOffset;
+      let warpedY = y + yWaveOffset;
+
+      // Apply breathing scale around center
+      // Vector from center to warped pixel
+      let dx = warpedX - centerX;
+      let dy = warpedY - centerY;
+
+      // Scale this vector by our scale factor
+      dx *= scale;
+      dy *= scale;
+
+      // Get final source pixel coords after scaling
+      const srcX = Math.max(0, Math.min(width - 1, Math.floor(centerX + dx)));
+      const srcY = Math.max(0, Math.min(height - 1, Math.floor(centerY + dy)));
+
+      const destIndex = (y * width + x) * 4;
+      const srcIndex = (srcY * width + srcX) * 4;
+
+      dstData[destIndex]     = srcData[srcIndex];
+      dstData[destIndex + 1] = srcData[srcIndex + 1];
+      dstData[destIndex + 2] = srcData[srcIndex + 2];
+      dstData[destIndex + 3] = 255;
+    }
+  }
+
+  ctx.putImageData(dest, 0, 0);
+
+  // Hue shimmer effect
+  dreamHue = (dreamHue + 0.6 + intensity * 2) % 360;
+  ctx.save();
+  ctx.globalCompositeOperation = 'hue';
+  ctx.fillStyle = `hsl(${dreamHue}, 100%, 50%)`;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.restore();
+}
+
+
 
 
 
@@ -922,6 +1009,9 @@ function drawVideo() {
     }
     if(filterMode === 'fire') {
         infernoFilter()
+    }
+    if (filterMode === 'dream') {
+        dreamWarpFilter()
     }
     if (filterMode === 'none') {
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
