@@ -215,3 +215,21 @@
     color: #d5468f;
   }
   
+  #YOffset {
+    accent-color: #d5468f;
+  }
+
+  .visualizer {
+    padding: 1rem 0;
+    border-top: 2px solid #f5d0e4;
+    border-bottom: 2px solid #f5d0e4;
+  }
+
+  #filter-section {
+    border-bottom: 2px solid #f5d0e4;
+    padding-bottom:2rem;
+  }
+
+  #effects-text {
+    font-weight: normal;
+  }
