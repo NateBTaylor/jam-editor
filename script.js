@@ -29,7 +29,7 @@ const offscreenCtx = offscreenCanvas.getContext('2d');
 
 // Resize limits
 const MAX_WIDTH = 720;
-const MAX_HEIGHT = 720;
+const MAX_HEIGHT = 600;
 
 document.body.addEventListener('click', () => {
     if (audioCtx.state === 'suspended') {
@@ -1260,6 +1260,7 @@ downloadBtn.addEventListener("click", () => {
 
   // Restart video from beginning
   video.currentTime = 0;
+  video.play()
 
   // Create streams
   const canvasStream = canvas.captureStream(30); // 30 FPS
