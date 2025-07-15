@@ -27,20 +27,46 @@
   
         <div class="visualizer">
             <div class="mode-picker">
-                <label for="modeSwitch">Mode:</label>
+                <label for="modeSwitch">Visualizer:</label>
                 <select id="modeSwitch">
                     <option value="none">None</option>
                     <option value="bars">Frequency Bars</option>
                     <option value="waveform">Waveform</option>
+                    <option value="radial">Radial</option>
                 </select>
             </div>
             <div id="colorControl">
                 <label for="colorPicker">Color:</label>
                 <input type="color" id="colorPicker" value="#FD3DB5">
             </div>
+            <div id="YControl">
+                <label for="YOffset">Vertical Position:
+                  <input type="range" id="YOffset" min="-200" max="200" step="1" value="0">
+                  <span id="YOffsetValue">0</span>
+                </label>
+            </div>
+        </div>
+
+        <div id="filter-section">
+            <label for="filterMode">Filters:</label>
+            <select id="filterMode">
+                <option value="none">None</option>
+                <option value="glow80s">80s Glow</option>
+                <option value="darkMetal">Dark Metal</option>
+                <option value="retroCamcorder">Retro Camcorder</option>
+                <option value="psychedelicPulse">Psychedelic Pulse</option>
+                <option value="grunge">Grunge</option>
+                <option value="sepiaFilm">Vintage Film</option>
+                <option value="neon">Neon</option>
+                <option value="glitch">Glitch</option>
+                <option value="vhs">VHS Tape</option>
+                <option value="fire">Fire</option>
+                <option value="dream">Dream</option>
+            </select>
         </div>
 
         <div class="toggles">
+            <h4 id="effects-text">Effects:</h4>
             <label for="shakeToggle">
                 <input type="checkbox" id="shakeToggle" unchecked>
                 Enable Shake
@@ -67,24 +93,6 @@
               <input type="range" id="shakeRange" min="0" max="0.2" step="0.005" value="0.05">
               <span id="shakeValue">0.05</span>
             </label>
-        </div>
-
-        <div id="filter-section">
-            <label for="filterMode">Filters:</label>
-            <select id="filterMode">
-                <option value="none">None</option>
-                <option value="glow80s">80s Glow</option>
-                <option value="darkMetal">Dark Metal</option>
-                <option value="retroCamcorder">Retro Camcorder</option>
-                <option value="psychedelicPulse">Psychedelic Pulse</option>
-                <option value="grunge">Grunge</option>
-                <option value="sepiaFilm">Vintage Film</option>
-                <option value="neon">Neon</option>
-                <option value="glitch">Glitch</option>
-                <option value="vhs">VHS Tape</option>
-                <option value="fire">Fire</option>
-                <option value="dream">Dream</option>
-            </select>
         </div>
 
         <button id="downloadProcessed">Record & Download</button>
