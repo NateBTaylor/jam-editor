@@ -1182,7 +1182,7 @@ function drawWaveform() {
     const waveformHeight = 250;
     const waveformY = canvas.height / 2 + visualizerYOffset; 
 
-    if (colorShiftEnabled && !video.paused) {
+    if (colorShiftEnabled && !video.paused && isShaking) {
         const shakeBoost = currentShakeIntensity * 5; // more shake = more color shift
         h = (h + shakeBoost) % 360;
     }
@@ -1226,7 +1226,7 @@ function drawFrequencyBars() {
   
     ctx.save();
 
-    if (colorShiftEnabled && !video.paused) {
+    if (colorShiftEnabled && !video.paused && isShaking) {
         const shakeBoost = currentShakeIntensity * 5; // more shake = more color shift
         h = (h + shakeBoost) % 360;
     }
@@ -1259,7 +1259,7 @@ function drawRadialVisualizer() {
   
     const angleStep = (Math.PI * 2) / barCount;
 
-    if (colorShiftEnabled && !video.paused) {
+    if (colorShiftEnabled && !video.paused && isShaking) {
         const shakeBoost = currentShakeIntensity * 5; // more shake = more color shift
         h = (h + shakeBoost) % 360;
     }
