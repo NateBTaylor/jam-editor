@@ -13,6 +13,8 @@ const bassHistory = [];
 const historyLength = 15;
 let frameCount = 0
 
+let visualizerYOffset = 0;
+
 
 let audioCtx;
 let analyser;
@@ -35,8 +37,16 @@ document.body.addEventListener('click', () => {
     if (audioCtx.state === 'suspended') {
       audioCtx.resume();
     }
-  });
+});
   
+const YOffsetSlider = document.getElementById("YOffset");
+const YOffsetValue = document.getElementById("YOffsetValue");
+
+YOffsetSlider.addEventListener("input", (e) => {
+  visualizerYOffset = parseInt(e.target.value);
+  YOffsetValue.textContent = visualizerYOffset;
+});
+
 
 let currentMode = 'none';
 
@@ -982,38 +992,27 @@ function drawVideo() {
 
     if (filterMode === 'retroCamcorder') {
         retroCamcorderFilter();
-    }
-    if (filterMode === 'darkMetal') {
+    } else if (filterMode === 'darkMetal') {
         metalFilter();
-    }
-    if (filterMode === 'glow80s') {
+    } else if (filterMode === 'glow80s') {
         glowFilter()
-    }
-    if (filterMode === 'psychedelicPulse') {
+    } else if (filterMode === 'psychedelicPulse') {
         psychedelicFilter();
-    } 
-    if (filterMode === 'grunge') {
+    } else if (filterMode === 'grunge') {
         grungeFilter()
-    }
-    if (filterMode === 'sepiaFilm') {
+    } else if (filterMode === 'sepiaFilm') {
         sepiaFilmFilter()
-    }
-    if (filterMode === 'neon') {
+    } else if (filterMode === 'neon') {
         neonCyberFilter();
-    }
-    if (filterMode === 'glitch') {
+    } else if (filterMode === 'glitch') {
         glitchFilter()
-    }
-    if (filterMode === "vhs") {
+    } else if (filterMode === "vhs") {
         vhsFilter()
-    }
-    if(filterMode === 'fire') {
+    } else if(filterMode === 'fire') {
         infernoFilter()
-    }
-    if (filterMode === 'dream') {
+    } else if (filterMode === 'dream') {
         dreamWarpFilter()
-    }
-    if (filterMode === 'none') {
+    } else if (filterMode === 'none') {
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
     }
 
@@ -1097,6 +1096,8 @@ function draw() {
         drawWaveform();
     } else if (currentMode === 'bars') {
         drawFrequencyBars();
+    } else if (currentMode === 'radial') {
+        drawRadialVisualizer()
     }
 
     requestAnimationFrame(draw);
@@ -1179,7 +1180,7 @@ function drawWaveform() {
     }
 
     const waveformHeight = 250;
-    const waveformY = 100; 
+    const waveformY = canvas.height / 2 + visualizerYOffset; 
 
     if (colorShiftEnabled && !video.paused) {
         const shakeBoost = currentShakeIntensity * 5; // more shake = more color shift
@@ -1234,7 +1235,7 @@ function drawFrequencyBars() {
       const value = frequencyData[i];
       const barHeight = value * barHeightMultiplier;
       const x = i * (barWidth + gap);
-      const y = canvas.height - barHeight;
+      const y = canvas.height - barHeight + visualizerYOffset;
   
       ctx.fillStyle = `hsla(${h}, ${baseS}%, ${baseL}%, 0.8)`;
       ctx.shadowColor = `hsla(${h}, ${baseS}%, ${baseL}%, 0.8)`;
@@ -1244,7 +1245,53 @@ function drawFrequencyBars() {
     }
   
     ctx.restore();
-  }
+}
+
+function drawRadialVisualizer() {
+    analyser.getByteFrequencyData(frequencyData);
+    
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2 + visualizerYOffset;
+    const radius = Math.min(centerX, centerY) * 0.25;
+    const barCount = 256;
+    const barWidth = 2;
+    const barHeightMultiplier = 1;
+  
+    const angleStep = (Math.PI * 2) / barCount;
+
+    if (colorShiftEnabled && !video.paused) {
+        const shakeBoost = currentShakeIntensity * 5; // more shake = more color shift
+        h = (h + shakeBoost) % 360;
+    }
+  
+    ctx.save();
+    ctx.translate(centerX, centerY);
+  
+    for (let i = 0; i < barCount; i++) {
+      const value = frequencyData[i];
+      const barHeight = value * barHeightMultiplier;
+      const angle = i * angleStep;
+  
+      const x = Math.cos(angle) * radius;
+      const y = Math.sin(angle) * radius;
+  
+      const xEnd = Math.cos(angle) * (radius + barHeight);
+      const yEnd = Math.sin(angle) * (radius + barHeight);
+  
+      ctx.strokeStyle = `hsla(${h}, ${baseS}%, ${baseL}%, 0.8)`;
+      ctx.shadowColor = `hsla(${h}, ${baseS}%, ${baseL}%, 0.8)`;
+      ctx.lineWidth = barWidth;
+      ctx.shadowBlur = 10;
+  
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(xEnd, yEnd);
+      ctx.stroke();
+    }
+  
+    ctx.restore();
+}
+  
     
 
 
