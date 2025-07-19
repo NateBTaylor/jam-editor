@@ -28,94 +28,92 @@
             </div>
         </div>
   
-        <div class="visualizer">
-            <div class="mode-picker">
-                <label for="modeSwitch">Visualizer:</label>
-                <select id="modeSwitch">
+        <!-- Tabs for Visualizer / Filters / Effects -->
+        <div class="tab-container">
+            <div class="tab-buttons">
+            <button class="tab-btn active" data-tab="visualizer-tab">Visualizers</button>
+            <button class="tab-btn" data-tab="filters-tab">Filters</button>
+            <button class="tab-btn" data-tab="effects-tab">Effects</button>
+            </div>
+        
+            <!-- Visualizer Tab -->
+            <div class="tab-content active" id="visualizer-tab">
+                <div class="visualizer">
+                    <div class="mode-picker">
+                    <label for="modeSwitch">Visualizers:</label>
+                    <select id="modeSwitch">
+                        <option value="none">None</option>
+                        <option value="bars">Frequency Bars</option>
+                        <option value="waveform">Waveform</option>
+                        <option value="radial1">Radial #1</option>
+                        <option value="eq1">EQ Bars #1</option>
+                        <option value="eq2">EQ Bars #2</option>
+                    </select>
+                    </div>
+                    <div id="colorControl">
+                    <label for="colorPicker">Color:</label>
+                    <input type="color" id="colorPicker" value="#FD3DB5">
+                    </div>
+                    <div id="YControl">
+                    <label for="YOffset">Vertical Position:
+                        <input type="range" id="YOffset" min="-200" max="200" step="1" value="0">
+                        <span id="YOffsetValue">0</span>
+                    </label>
+                    </div>
+                    <div id="XControl">
+                    <label for="XOffset">Horizontal Position:
+                        <input type="range" id="XOffset" min="-200" max="200" step="1" value="0">
+                        <span id="XOffsetValue">0</span>
+                    </label>
+                    </div>
+                </div>
+            </div>
+        
+            <!-- Filters Tab -->
+            <div class="tab-content" id="filters-tab">
+                <div id="filter-section">
+                    <label for="filterMode">Filters:</label>
+                    <select id="filterMode">
                     <option value="none">None</option>
-                    <option value="bars">Frequency Bars</option>
-                    <option value="waveform">Waveform</option>
-                    <option value="radial1">Radial #1</option>
-                    <option value="eq1">EQ Bars #1</option>
-                    <option value="eq2">EQ Bars #2</option>
-                </select>
+                    <option value="glow80s">80s Glow</option>
+                    <option value="darkMetal">Dark Metal</option>
+                    <option value="retroCamcorder">Retro Camcorder</option>
+                    <option value="psychedelicPulse">Psychedelic</option>
+                    <option value="grunge">Grunge</option>
+                    <option value="sepiaFilm">Vintage Film</option>
+                    <option value="neon">Neon</option>
+                    <option value="glitch">Glitch</option>
+                    <option value="vhs">VHS Tape</option>
+                    <option value="fire">Fire</option>
+                    <option value="dream">Dream</option>
+                    </select>
+                </div>
             </div>
-            <div id="colorControl">
-                <label for="colorPicker">Color:</label>
-                <input type="color" id="colorPicker" value="#FD3DB5">
+        
+            <!-- Effects Tab -->
+            <div class="tab-content" id="effects-tab">
+                <div class="toggles">
+                    <h4 id="effects-text">Effects:</h4>
+                    <label><input type="checkbox" id="shakeToggle"> Shake</label>
+                    <label><input type="checkbox" id="colorShiftToggle"> Color shift to visualizer on shake</label>
+                    <label><input type="checkbox" id="wobbleToggle"> Wobble</label>
+                    <label><input type="checkbox" id="pulseToggle"> Pulse</label>
+                    <label><input type="checkbox" id="shockwaveToggle"> Shockwave</label>
+                </div>
+                <div id="shakeControl">
+                    <label for="shakeRange">Shake Sensitivity:
+                    <input type="range" id="shakeRange" min="0" max="0.5" step="0.005" value="0.1">
+                    <span id="shakeValue">0.05</span>
+                    </label>
+                </div>
             </div>
-            <div id="YControl">
-                <label for="YOffset">Vertical Position:
-                  <input type="range" id="YOffset" min="-200" max="200" step="1" value="0">
-                  <span id="YOffsetValue">0</span>
-                </label>
-            </div>
-            <div id="XControl">
-                <label for="XOffset">Horizontal Position:
-                  <input type="range" id="XOffset" min="-200" max="200" step="1" value="0">
-                  <span id="XOffsetValue">0</span>
-                </label>
-            </div>
-        </div>
-
-        <div id="filter-section">
-            <label for="filterMode">Filters:</label>
-            <select id="filterMode">
-                <option value="none">None</option>
-                <option value="glow80s">80s Glow</option>
-                <option value="darkMetal">Dark Metal</option>
-                <option value="retroCamcorder">Retro Camcorder</option>
-                <option value="psychedelicPulse">Psychedelic</option>
-                <option value="grunge">Grunge</option>
-                <option value="sepiaFilm">Vintage Film</option>
-                <option value="neon">Neon</option>
-                <option value="glitch">Glitch</option>
-                <option value="vhs">VHS Tape</option>
-                <option value="fire">Fire</option>
-                <option value="dream">Dream</option>
-            </select>
-        </div>
-
-        <div class="toggles">
-            <h4 id="effects-text">Effects:</h4>
-            <label for="shakeToggle">
-                <input type="checkbox" id="shakeToggle" unchecked>
-                Shake
-            </label>
-
-            <label for="colorShiftToggle">
-                <input type="checkbox" id="colorShiftToggle" unchecked>
-                Color shift to visualizer on shake
-            </label>
-
-            <label for="wobbleToggle">
-                <input type="checkbox" id="wobbleToggle" unchecked />
-                Wobble
-            </label>
-
-            <label for="pulseToggle">
-                <input type="checkbox" id="pulseToggle" unchecked />
-                Pulse
-            </label>
-
-            <label for="shockwaveToggle">
-                <input type="checkbox" id="shockwaveToggle" unchecked>
-                Shockwave
-            </label>
-        </div>
-
-        <div id="shakeControl">
-            <label for="shakeRange">Shake Sensitivity:
-              <input type="range" id="shakeRange" min="0" max="0.5" step="0.005" value="0.1">
-              <span id="shakeValue">0.05</span>
-            </label>
-        </div>
+        </div>  
 
         <button id="downloadProcessed">Record & Download</button>
         <p id="download-p">After pressing download, wait for the video to play through completely. It has to record the video and then it will download once complete.</p>
-
+    
     </div>
-  
+
     <script src="script.js"></script>
   </body>
 </html>
