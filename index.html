@@ -8,7 +8,10 @@
 </head>
 <body>
     <div id="app">
-        <h1>Jam Editor</h1>
+        <div class="header">
+            <h1><i>JAM</i> editor</h1>
+            <button onclick="shareSite()">Share This Site</button>
+        </div>
         <input type="file" accept="video/*" id="videoUploader" />
         <canvas id="canvas"></canvas>
   
@@ -32,7 +35,9 @@
                     <option value="none">None</option>
                     <option value="bars">Frequency Bars</option>
                     <option value="waveform">Waveform</option>
-                    <option value="radial">Radial</option>
+                    <option value="radial1">Radial #1</option>
+                    <option value="eq1">EQ Bars #1</option>
+                    <option value="eq2">EQ Bars #2</option>
                 </select>
             </div>
             <div id="colorControl">
@@ -45,6 +50,12 @@
                   <span id="YOffsetValue">0</span>
                 </label>
             </div>
+            <div id="XControl">
+                <label for="XOffset">Horizontal Position:
+                  <input type="range" id="XOffset" min="-200" max="200" step="1" value="0">
+                  <span id="XOffsetValue">0</span>
+                </label>
+            </div>
         </div>
 
         <div id="filter-section">
@@ -54,7 +65,7 @@
                 <option value="glow80s">80s Glow</option>
                 <option value="darkMetal">Dark Metal</option>
                 <option value="retroCamcorder">Retro Camcorder</option>
-                <option value="psychedelicPulse">Psychedelic Pulse</option>
+                <option value="psychedelicPulse">Psychedelic</option>
                 <option value="grunge">Grunge</option>
                 <option value="sepiaFilm">Vintage Film</option>
                 <option value="neon">Neon</option>
@@ -69,28 +80,33 @@
             <h4 id="effects-text">Effects:</h4>
             <label for="shakeToggle">
                 <input type="checkbox" id="shakeToggle" unchecked>
-                Enable Shake
+                Shake
             </label>
 
             <label for="colorShiftToggle">
                 <input type="checkbox" id="colorShiftToggle" unchecked>
-                Color Shift on Shake
+                Color shift to visualizer on shake
             </label>
 
             <label for="wobbleToggle">
                 <input type="checkbox" id="wobbleToggle" unchecked />
-                Enable Wobble
+                Wobble
             </label>
 
             <label for="pulseToggle">
                 <input type="checkbox" id="pulseToggle" unchecked />
-                Enable Pulse
+                Pulse
+            </label>
+
+            <label for="shockwaveToggle">
+                <input type="checkbox" id="shockwaveToggle" unchecked>
+                Shockwave
             </label>
         </div>
 
         <div id="shakeControl">
             <label for="shakeRange">Shake Sensitivity:
-              <input type="range" id="shakeRange" min="0" max="0.2" step="0.005" value="0.05">
+              <input type="range" id="shakeRange" min="0" max="0.5" step="0.005" value="0.1">
               <span id="shakeValue">0.05</span>
             </label>
         </div>
