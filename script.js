@@ -1,5 +1,5 @@
 const canvas = document.getElementById('canvas');
-const ctx = canvas.getContext('2d');
+const ctx = canvas.getContext('2d', { willReadFrequently: true });
 const video = document.createElement('video');
 video.crossOrigin = "anonymous";
 video.setAttribute("playsinline", "true");
@@ -14,7 +14,7 @@ const historyLength = 15;
 let frameCount = 0
 
 let visualizerYOffset = 0;
-
+let visualizerXOffset = 0;
 
 let audioCtx;
 let analyser;
@@ -23,18 +23,22 @@ let timeDomainData;
 let frequencyData;
 let waveData;
 
+
 const glowCanvas = document.createElement('canvas');
 const glowCtx = glowCanvas.getContext('2d');
 
 const offscreenCanvas = document.createElement('canvas');
 const offscreenCtx = offscreenCanvas.getContext('2d');
 
+const psychCanvas = document.createElement('canvas');
+const psychCtx = psychCanvas.getContext('2d');
+
 // Resize limits
 const MAX_WIDTH = 720;
 const MAX_HEIGHT = 600;
 
 document.body.addEventListener('click', () => {
-    if (audioCtx.state === 'suspended') {
+    if (typeof audioCtx !== "undefined" && audioCtx.state === 'suspended') {
       audioCtx.resume();
     }
 });
@@ -45,6 +49,14 @@ const YOffsetValue = document.getElementById("YOffsetValue");
 YOffsetSlider.addEventListener("input", (e) => {
   visualizerYOffset = parseInt(e.target.value);
   YOffsetValue.textContent = visualizerYOffset;
+});
+
+const XOffsetSlider = document.getElementById("XOffset");
+const XOffsetValue = document.getElementById("XOffsetValue");
+
+XOffsetSlider.addEventListener("input", (e) => {
+  visualizerXOffset = parseInt(e.target.value);
+  XOffsetValue.textContent = visualizerXOffset;
 });
 
 
@@ -61,12 +73,19 @@ pulseToggle.addEventListener('change', (e) => {
     pulseEnabled = e.target.checked
 })
 
+let shockwaveEnabled = false
+const waveToggle = document.getElementById('shockwaveToggle')
+waveToggle.addEventListener('change', (e) => {
+    shockwaveEnabled = e.target.checked
+})
+
 let shakeEnabled = false;
 const shakeToggle = document.getElementById('shakeToggle');
 shakeToggle.addEventListener('change', (e) => {
   shakeEnabled = e.target.checked;
   isShaking = false
 });
+
 
 let colorShiftEnabled = false
 const colorShiftToggle = document.getElementById('colorShiftToggle')
@@ -84,11 +103,11 @@ shakeRange.addEventListener('input', (e) => {
   shakeValue.textContent = shakeThreshold.toFixed(3);
 });
 
-let enableWobble = false;
+let wobbleEnabled = false;
 const wobbleToggle = document.getElementById("wobbleToggle");
 
 wobbleToggle.addEventListener("change", () => {
-  enableWobble = wobbleToggle.checked;
+  wobbleEnabled = wobbleToggle.checked;
 });
 
 let filterMode = 'none';
@@ -112,6 +131,31 @@ document.getElementById('videoUploader').addEventListener('change', function (e)
             glowCanvas.height = canvas.height;
             offscreenCanvas.width = canvas.width;
             offscreenCanvas.height = canvas.height;
+            psychCanvas.width = canvas.width;
+            psychCanvas.height = canvas.height;
+
+
+            const YOffsetSlider = document.getElementById("YOffset");
+            const YOffsetValue = document.getElementById("YOffsetValue");
+
+            // Set Y offset slider limits based on canvas height
+            const maxYOffset = Math.floor(canvas.height / 2);
+            YOffsetSlider.min = -maxYOffset;
+            YOffsetSlider.max = maxYOffset;
+            YOffsetSlider.value = 0;
+            YOffsetValue.textContent = "0";
+
+            const XOffsetSlider = document.getElementById("XOffset");
+            const XOffsetValue = document.getElementById("XOffsetValue");
+
+            // Set Y offset slider limits based on canvas height
+            const maxXOffset = Math.floor(canvas.height / 2);
+            XOffsetSlider.min = -maxXOffset;
+            XOffsetSlider.max = maxXOffset;
+            XOffsetSlider.value = 0;
+            XOffsetValue.textContent = "0";
+
+
 
             // 🔊 Setup audio context
             audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -184,31 +228,40 @@ function scaleToFit(videoWidth, videoHeight) {
 }
   
 
-function glowFilter() {
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    glowCtx.clearRect(0, 0, glowCanvas.width, glowCanvas.height);
-    glowCtx.filter = 'blur(4px) brightness(1.05) saturate(1.1)';
-    glowCtx.clearRect(0, 0, glowCanvas.width, glowCanvas.height);
-    glowCtx.drawImage(video, 0, 0, canvas.width, canvas.height);
+function glowFilter(inputCtx, outputCtx) {
+  const width = inputCtx.canvas.width;
+  const height = inputCtx.canvas.height;
 
-    const glowIntensity = 0.35
+  // 1. Draw input onto output first
+  outputCtx.drawImage(inputCtx.canvas, 0, 0, width, height);
 
-    // 3. Blend glow layer back with lighter mode
-    ctx.save();
-    ctx.globalAlpha = glowIntensity;
-    ctx.globalCompositeOperation = 'lighter';
-    ctx.drawImage(glowCanvas, 0, 0);
-    ctx.restore();
+  // 2. Create an offscreen canvas for the glow effect
+  const glowCanvas = document.createElement('canvas');
+  glowCanvas.width = width;
+  glowCanvas.height = height;
+  const glowCtx = glowCanvas.getContext('2d');
 
-    // 4. Add scanlines
-    ctx.save();
-    ctx.globalAlpha = 0.07;
-    ctx.fillStyle = '#000';
-    for (let y = 0; y < canvas.height; y += 4) {
-        ctx.fillRect(0, y, canvas.width, 1);
-    }
-    ctx.restore();
+  glowCtx.clearRect(0, 0, width, height);
+  glowCtx.filter = 'blur(4px) brightness(1.05) saturate(1.1)';
+  glowCtx.drawImage(inputCtx.canvas, 0, 0, width, height);
+
+  // 3. Blend glow layer back onto output with 'lighter' mode
+  outputCtx.save();
+  outputCtx.globalAlpha = 0.35;  // glowIntensity
+  outputCtx.globalCompositeOperation = 'lighter';
+  outputCtx.drawImage(glowCanvas, 0, 0);
+  outputCtx.restore();
+
+  // 4. Add scanlines on outputCtx
+  outputCtx.save();
+  outputCtx.globalAlpha = 0.07;
+  outputCtx.fillStyle = '#000';
+  for (let y = 0; y < height; y += 4) {
+    outputCtx.fillRect(0, y, width, 1);
+  }
+  outputCtx.restore();
 }
+
 
 function fisheyeWarp(imageData, strength = 0.2) {
     const { width, height, data } = imageData;
@@ -244,228 +297,250 @@ function fisheyeWarp(imageData, strength = 0.2) {
 }
   
 
-function metalFilter() {
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    // 2. Deeper red tint with slightly less opacity
-    ctx.save();
-    ctx.globalCompositeOperation = 'multiply';
-    ctx.fillStyle = 'rgba(120, 0, 0, 0.18)';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.restore();
+function metalFilter(inputCtx, outputCtx) {
+  const width = inputCtx.canvas.width;
+  const height = inputCtx.canvas.height;
 
-    // 3. Desaturation and brightness correction
-    ctx.save();
-    ctx.filter = 'grayscale(0.5) contrast(1.1) brightness(1)';
-    ctx.drawImage(canvas, 0, 0);
-    ctx.restore();
+  // 1. Draw input frame onto output
+  outputCtx.drawImage(inputCtx.canvas, 0, 0, width, height);
 
-    // 4. Lighter vignette with smoother gradient
-    const vignetteStrength = 0.35 + Math.min(currentShakeIntensity * 0.3, 0.4);
-    ctx.save();
-    const grd = ctx.createRadialGradient(
-        canvas.width / 2, canvas.height / 2, canvas.width / 4,
-        canvas.width / 2, canvas.height / 2, canvas.width / 1.05
-    );
-    grd.addColorStop(0, 'rgba(0,0,0,0)');
-    grd.addColorStop(1, `rgba(0,0,0,${vignetteStrength})`);
-    ctx.fillStyle = grd;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.restore();
+  // 2. Deeper red tint with slightly less opacity
+  outputCtx.save();
+  outputCtx.globalCompositeOperation = 'multiply';
+  outputCtx.fillStyle = 'rgba(120, 0, 0, 0.18)';
+  outputCtx.fillRect(0, 0, width, height);
+  outputCtx.restore();
 
-    // 5. Light glitch scanlines
-    ctx.save();
-    ctx.globalAlpha = 0.04;
-    ctx.fillStyle = '#111';
-    for (let y = 0; y < canvas.height; y += 4) {
-        if (Math.random() < 0.15) {
-        ctx.fillRect(0, y, canvas.width, 1);
-        }
-    }
-    ctx.restore();
+  // 3. Desaturation and brightness correction
+  outputCtx.save();
+  outputCtx.filter = 'grayscale(0.5) contrast(1.1) brightness(1)';
+  // Re-draw current output with filter
+  // We have to draw from outputCtx canvas again since this is a separate context
+  outputCtx.drawImage(outputCtx.canvas, 0, 0, width, height);
+  outputCtx.restore();
 
-    // 7. More intense fisheye distortion
-    const strength = 0.16
-    if (strength > 0.01) {
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const warped = fisheyeWarp(imageData, strength);
-        ctx.putImageData(warped, 0, 0);
-    }
+  // 4. Lighter vignette with smoother gradient
+  const vignetteStrength = 0.35 + Math.min(currentShakeIntensity * 0.3, 0.4); // you might want to pass currentShakeIntensity or make it global
+  outputCtx.save();
+  const grd = outputCtx.createRadialGradient(
+    width / 2, height / 2, width / 4,
+    width / 2, height / 2, width / 1.05
+  );
+  grd.addColorStop(0, 'rgba(0,0,0,0)');
+  grd.addColorStop(1, `rgba(0,0,0,${vignetteStrength})`);
+  outputCtx.fillStyle = grd;
+  outputCtx.fillRect(0, 0, width, height);
+  outputCtx.restore();
 
-}
-
-function retroCamcorderFilter() {
-    // 1. Draw the original video
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-  
-    // 2. Apply washed-out VHS color (sepia/green tint)
-    ctx.save();
-    ctx.globalCompositeOperation = 'multiply';
-    ctx.fillStyle = 'rgba(200, 180, 130, 0.12)'; // VHS tint overlay
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.restore();
-  
-    // 3. Scanlines (stronger than usual)
-    ctx.save();
-    ctx.globalAlpha = 0.07;
-    ctx.fillStyle = '#000';
-    for (let y = 0; y < canvas.height; y += 3) {
-      ctx.fillRect(0, y, canvas.width, 1);
-    }
-    ctx.restore();
-  
-    // 4. Tape flicker (pulsing brightness)
-    const flicker = 0.96 + Math.random() * 0.04;
-    ctx.save();
-    ctx.globalAlpha = 1;
-    ctx.filter = `brightness(${flicker})`;
-    ctx.drawImage(canvas, 0, 0);
-    ctx.restore();
-  
-    // 5. Slight horizontal jitter every few frames
+  // 5. Light glitch scanlines
+  outputCtx.save();
+  outputCtx.globalAlpha = 0.04;
+  outputCtx.fillStyle = '#111';
+  for (let y = 0; y < height; y += 4) {
     if (Math.random() < 0.15) {
-      const offset = Math.random() * 4 - 2; // -2px to +2px
-      ctx.save();
-      const frame = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.putImageData(frame, offset, 0);
-      ctx.restore();
+      outputCtx.fillRect(0, y, width, 1);
     }
-  
-    // 6. Timestamp / Overlay
-    ctx.save();
-    ctx.font = '16px monospace';
-    ctx.fillStyle = 'red';
-    ctx.shadowColor = 'rgba(255, 0, 0, 0.4)';
-    ctx.shadowBlur = 4;
-    const now = new Date();
-    const time = now.toLocaleTimeString([], { hour12: false });
-    const date = now.toLocaleDateString();
-    ctx.fillText(`REC  •  ${date} ${time}`, 20, 30);
-    ctx.restore();
+  }
+  outputCtx.restore();
+
+  // 6. More intense fisheye distortion
+  const strength = getVolumePulse() / 4;
+  if (strength > 0.01) {
+    const imageData = outputCtx.getImageData(0, 0, width, height);
+    const warped = fisheyeWarp(imageData, strength);
+    outputCtx.putImageData(warped, 0, 0);
+  }
 }
+
+
+function drawTimestamp(outputCtx, text, maxFontSize = 16, margin = 12, y = 25) {
+  let fontSize = maxFontSize;
+  outputCtx.font = `${fontSize}px monospace`;
+  let textWidth = outputCtx.measureText(text).width;
+
+  // Reduce font size until it fits
+  while (textWidth > outputCtx.canvas.width - margin * 2 && fontSize > 8) {
+    fontSize--;
+    outputCtx.font = `${fontSize}px monospace`;
+    textWidth = outputCtx.measureText(text).width;
+  }
+
+  // Draw text left-aligned with margin
+  outputCtx.fillText(text, margin, y);
+}
+
+function retroCamcorderFilter(inputCtx, outputCtx) {
+  const width = outputCtx.canvas.width;
+  const height = outputCtx.canvas.height;
+
+  // 1. Draw the original frame from inputCtx to outputCtx
+  outputCtx.clearRect(0, 0, width, height);
+  outputCtx.drawImage(inputCtx.canvas, 0, 0, width, height);
+
+  // 2. Apply washed-out VHS color (sepia/green tint)
+  outputCtx.save();
+  outputCtx.globalCompositeOperation = 'multiply';
+  outputCtx.fillStyle = 'rgba(200, 180, 130, 0.12)'; // VHS tint overlay
+  outputCtx.fillRect(0, 0, width, height);
+  outputCtx.restore();
+
+  // 3. Scanlines (stronger than usual)
+  outputCtx.save();
+  outputCtx.globalAlpha = 0.07;
+  outputCtx.fillStyle = '#000';
+  for (let y = 0; y < height; y += 3) {
+    outputCtx.fillRect(0, y, width, 1);
+  }
+  outputCtx.restore();
+
+  // 4. Tape flicker (pulsing brightness)
+  const flicker = 0.96 + Math.random() * 0.04;
+  outputCtx.save();
+  outputCtx.globalAlpha = 1;
+  outputCtx.filter = `brightness(${flicker})`;
+  // Re-draw current output with flicker applied (draw over itself)
+  outputCtx.drawImage(outputCtx.canvas, 0, 0);
+  outputCtx.restore();
+
+  // 5. Slight horizontal jitter every few frames
+  if (Math.random() < 0.15) {
+    const offset = Math.random() * 4 - 2; // -2px to +2px
+    const frame = outputCtx.getImageData(0, 0, width, height);
+    outputCtx.clearRect(0, 0, width, height);
+    outputCtx.putImageData(frame, offset, 0);
+  }
+
+  // 6. Timestamp / Overlay
+  const now = new Date();
+  const time = now.toLocaleTimeString([], { hour12: false });
+  const date = now.toLocaleDateString();
+  const timestampText = `REC  •  ${date} ${time}`;
+
+  outputCtx.save();
+  outputCtx.fillStyle = 'red';
+  outputCtx.shadowColor = 'rgba(255, 0, 0, 0.4)';
+  outputCtx.shadowBlur = 4;
+
+  drawTimestamp(outputCtx, timestampText);
+
+  outputCtx.restore();
+}
+
 
 let psychedelicHue = 0;
-
 const trailFrames = [];
-const TRAIL_LENGTH = 20; // number of ghost frames
+const TRAIL_LENGTH = 20;
 
-
-function psychedelicFilter() {
-
+function psychedelicFilter(inputCtx, outputCtx) {
     analyser.getByteFrequencyData(frequencyData);
     const avgVolume = frequencyData.reduce((a, b) => a + b, 0) / frequencyData.length;
-    const pulse = Math.min(avgVolume / 256, 1); // normalized
+    const pulse = Math.min(avgVolume / 256, 1);
+    const pulseScale = 1 + pulse * 0.7;
 
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const width = outputCtx.canvas.width;
+    const height = outputCtx.canvas.height;
 
-    // Draw trail frames first
+    outputCtx.clearRect(0, 0, width, height);
+
+    // Draw trail frames
     for (let i = trailFrames.length - 1; i >= 0; i--) {
         const ghost = trailFrames[i];
-        const alpha = (i + 1) / (trailFrames.length + 1); // fades out
-    
-        ctx.save();
-        ctx.globalAlpha = 0.15 * alpha; // subtle trail glow
-        ctx.filter = `blur(${(trailFrames.length - i)}px)`; // optional softness
-        ctx.drawImage(ghost, 0, 0);
-        ctx.restore();
+        const alpha = (i + 1) / (trailFrames.length + 1);
+
+        outputCtx.save();
+        outputCtx.globalAlpha = 0.15 * alpha;
+        outputCtx.filter = `blur(${(trailFrames.length - i)}px)`;
+        outputCtx.drawImage(ghost, 0, 0);
+        outputCtx.restore();
     }
 
-    ctx.save();
-    const pulseScale = 1 + pulse * 0.7;
-    ctx.globalAlpha = 0.4;
-    ctx.translate(canvas.width / 2, canvas.height / 2);
-    ctx.scale(pulseScale, pulseScale);
-    ctx.translate(-canvas.width / 2, -canvas.height / 2);
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    ctx.restore();
+    // Draw current frame with scale/pulse
+    outputCtx.save();
+    outputCtx.globalAlpha = 0.4;
+    outputCtx.translate(width / 2, height / 2);
+    outputCtx.scale(pulseScale, pulseScale);
+    outputCtx.translate(-width / 2, -height / 2);
+    outputCtx.drawImage(inputCtx.canvas, 0, 0, width, height);
+    outputCtx.restore();
 
-
-    // Store current frame into trail queue
+    // Store current frame for trail
     const frameCanvas = document.createElement('canvas');
-    frameCanvas.width = canvas.width;
-    frameCanvas.height = canvas.height;
-    frameCanvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+    frameCanvas.width = width;
+    frameCanvas.height = height;
+    frameCanvas.getContext('2d').drawImage(inputCtx.canvas, 0, 0, width, height);
 
-    if (frameCount % 1 == 0) {
-        // Add to the start of the queue
-        trailFrames.unshift(frameCanvas);
-
-        // Limit to last N frames
-        if (trailFrames.length > TRAIL_LENGTH) {
-            trailFrames.pop();
-        }
+    trailFrames.unshift(frameCanvas);
+    if (trailFrames.length > TRAIL_LENGTH) {
+        trailFrames.pop();
     }
 
-    // 5. Apply hue rotation
+    // Hue rotation overlay
     psychedelicHue = (psychedelicHue + 0.8 + pulse * 3) % 360;
-    ctx.save();
-    ctx.globalCompositeOperation = 'hue';
-    ctx.fillStyle = `hsl(${psychedelicHue}, 100%, 50%)`;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.restore();
-
-    // 5. Copy current canvas frame into offscreen canvas for next iteration
-    offscreenCtx.fillStyle = 'rgba(0, 0, 0, 0.1)'; // Lower alpha = longer trails
-    offscreenCtx.fillRect(0, 0, offscreenCanvas.width, offscreenCanvas.height);
-    offscreenCtx.drawImage(canvas, 0, 0);
+    outputCtx.save();
+    outputCtx.globalCompositeOperation = 'hue';
+    outputCtx.fillStyle = `hsl(${psychedelicHue}, 100%, 50%)`;
+    outputCtx.fillRect(0, 0, width, height);
+    outputCtx.restore();
 }
 
-function grungeFilter() {
-    // 1. Draw current video frame
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-  
-    // 2. Desaturate and crush blacks
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const data = imageData.data;
-  
-    for (let i = 0; i < data.length; i += 4) {
-      const r = data[i];
-      const g = data[i + 1];
-      const b = data[i + 2];
-  
-      // Desaturate by averaging channels
-      const gray = (r + g + b) / 3;
-  
-      // Grunge = desaturated + high contrast
-      const contrast = (gray < 100) ? gray * 0.7 : gray * 1.1;
-  
-      // Add dirty greenish tint
-      data[i]     = contrast * 0.8; // Red
-      data[i + 1] = contrast * 0.95; // Green
-      data[i + 2] = contrast * 0.8; // Blue
-    }
-  
-    ctx.putImageData(imageData, 0, 0);
-  
-    // 3. Add grain
-    const grainStrength = 20;
-    const grainDensity = 0.15; // 15% of pixels
-    for (let i = 0; i < canvas.width * canvas.height * grainDensity; i++) {
-      const x = Math.floor(Math.random() * canvas.width);
-      const y = Math.floor(Math.random() * canvas.height);
-      const intensity = (Math.random() - 0.5) * grainStrength;
-  
-      ctx.fillStyle = `rgba(${intensity}, ${intensity}, ${intensity}, 0.1)`;
-      ctx.fillRect(x, y, 1, 1);
-    }
-  
-    // 4. Add vignette
-    const gradient = ctx.createRadialGradient(
-      canvas.width / 2,
-      canvas.height / 2,
-      canvas.width * 0.1,
-      canvas.width / 2,
-      canvas.height / 2,
-      canvas.width * 0.6
-    );
-    gradient.addColorStop(0, 'rgba(0, 0, 0, 0)');
-    gradient.addColorStop(1, 'rgba(0, 0, 0, 0.4)');
-  
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+function grungeFilter(inputCtx, outputCtx) {
+  const width = inputCtx.canvas.width;
+  const height = inputCtx.canvas.height;
+
+  // 1. Draw input onto output
+  outputCtx.drawImage(inputCtx.canvas, 0, 0, width, height);
+
+  // 2. Desaturate and crush blacks
+  const imageData = outputCtx.getImageData(0, 0, width, height);
+  const data = imageData.data;
+
+  for (let i = 0; i < data.length; i += 4) {
+    const r = data[i];
+    const g = data[i + 1];
+    const b = data[i + 2];
+
+    const gray = (r + g + b) / 3;
+    const contrast = (gray < 100) ? gray * 0.7 : gray * 1.1;
+
+    data[i]     = contrast * 0.8;  // R
+    data[i + 1] = contrast * 0.95; // G
+    data[i + 2] = contrast * 0.8;  // B
+  }
+
+  outputCtx.putImageData(imageData, 0, 0);
+
+  // 3. Add grain
+  const grainStrength = 20;
+  const grainDensity = 0.15;
+  for (let i = 0; i < width * height * grainDensity; i++) {
+    const x = Math.floor(Math.random() * width);
+    const y = Math.floor(Math.random() * height);
+    const intensity = (Math.random() - 0.5) * grainStrength;
+
+    outputCtx.fillStyle = `rgba(${intensity}, ${intensity}, ${intensity}, 0.1)`;
+    outputCtx.fillRect(x, y, 1, 1);
+  }
+
+  // 4. Add vignette
+  const gradient = outputCtx.createRadialGradient(
+    width / 2,
+    height / 2,
+    width * 0.1,
+    width / 2,
+    height / 2,
+    width * 0.6
+  );
+  gradient.addColorStop(0, 'rgba(0, 0, 0, 0)');
+  gradient.addColorStop(1, 'rgba(0, 0, 0, 0.4)');
+
+  outputCtx.fillStyle = gradient;
+  outputCtx.fillRect(0, 0, width, height);
 }
 
-function drawFilmBorder() {
+
+
+function drawFilmBorder(context) {
     const holeWidth = 12;
     const holeHeight = 36;
     const holeSpacing = 24;
@@ -473,179 +548,168 @@ function drawFilmBorder() {
     const borderThickness = 36;
     const cornerRadius = 20;
   
-    ctx.save();
+    context.save();
   
     // Dark rounded frame
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-    ctx.beginPath();
+    context.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    context.beginPath();
   
     // Outer rectangle
-    ctx.rect(0, 0, canvas.width, canvas.height);
+    context.rect(0, 0, canvas.width, canvas.height);
   
     // Inner rounded rectangle (cutout)
-    ctx.moveTo(borderThickness + cornerRadius, borderThickness);
-    ctx.lineTo(canvas.width - borderThickness - cornerRadius, borderThickness);
-    ctx.quadraticCurveTo(canvas.width - borderThickness, borderThickness, canvas.width - borderThickness, borderThickness + cornerRadius);
-    ctx.lineTo(canvas.width - borderThickness, canvas.height - borderThickness - cornerRadius);
-    ctx.quadraticCurveTo(canvas.width - borderThickness, canvas.height - borderThickness, canvas.width - borderThickness - cornerRadius, canvas.height - borderThickness);
-    ctx.lineTo(borderThickness + cornerRadius, canvas.height - borderThickness);
-    ctx.quadraticCurveTo(borderThickness, canvas.height - borderThickness, borderThickness, canvas.height - borderThickness - cornerRadius);
-    ctx.lineTo(borderThickness, borderThickness + cornerRadius);
-    ctx.quadraticCurveTo(borderThickness, borderThickness, borderThickness + cornerRadius, borderThickness);
+    context.moveTo(borderThickness + cornerRadius, borderThickness);
+    context.lineTo(canvas.width - borderThickness - cornerRadius, borderThickness);
+    context.quadraticCurveTo(canvas.width - borderThickness, borderThickness, canvas.width - borderThickness, borderThickness + cornerRadius);
+    context.lineTo(canvas.width - borderThickness, canvas.height - borderThickness - cornerRadius);
+    context.quadraticCurveTo(canvas.width - borderThickness, canvas.height - borderThickness, canvas.width - borderThickness - cornerRadius, canvas.height - borderThickness);
+    context.lineTo(borderThickness + cornerRadius, canvas.height - borderThickness);
+    context.quadraticCurveTo(borderThickness, canvas.height - borderThickness, borderThickness, canvas.height - borderThickness - cornerRadius);
+    context.lineTo(borderThickness, borderThickness + cornerRadius);
+    context.quadraticCurveTo(borderThickness, borderThickness, borderThickness + cornerRadius, borderThickness);
   
     // Cut out the inner shape
-    ctx.closePath();
-    ctx.fill("evenodd");
+    context.closePath();
+    context.fill("evenodd");
   
     // Sprocket holes on left and right (clear rectangles)
     for (let y = sidePadding; y < canvas.height - sidePadding; y += holeHeight + holeSpacing) {
-      ctx.clearRect(0, y, holeWidth, holeHeight); // Left side
-      ctx.clearRect(canvas.width - holeWidth, y, holeWidth, holeHeight); // Right side
+      context.clearRect(0, y, holeWidth, holeHeight); // Left side
+      context.clearRect(canvas.width - holeWidth, y, holeWidth, holeHeight); // Right side
     }
   
-    ctx.restore();
+    context.restore();
 }
-  
-  
 
-function sepiaFilmFilter() {
-    // 1. Draw current video frame
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-  
-    // 2. Get and modify pixel data
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const data = imageData.data;
-  
-    for (let i = 0; i < data.length; i += 4) {
-      const r = data[i];
-      const g = data[i + 1];
-      const b = data[i + 2];
-  
-      // Convert to grayscale first
-      const gray = 0.3 * r + 0.59 * g + 0.11 * b;
-  
-      // Apply sepia tone
-      data[i]     = Math.min(255, gray * 1.07);  // R
-      data[i + 1] = Math.min(255, gray * 0.74);  // G
-      data[i + 2] = Math.min(255, gray * 0.43);  // B
-  
-      // Optional: Increase contrast slightly
-      // Not needed if your footage already has strong contrast
-    }
-  
-    ctx.putImageData(imageData, 0, 0);
-  
-    // 3. Add grain (subtle)
-    const grainStrength = 20;
-    const grainDensity = 0.13; // 15% of pixels
-    for (let i = 0; i < canvas.width * canvas.height * grainDensity; i++) {
-      const x = Math.floor(Math.random() * canvas.width);
-      const y = Math.floor(Math.random() * canvas.height);
-      const intensity = (Math.random() - 0.5) * grainStrength;
-  
-      ctx.fillStyle = `rgba(${intensity}, ${intensity}, ${intensity}, 0.1)`;
-      ctx.fillRect(x, y, 1, 1);
-    }
-  
-    // 4. Optional flicker (simulate projector instability)
-    const flickerStrength = (Math.random() - 0.5) * 0.1; // Range: -0.05 to +0.05
+function sepiaFilmFilter(inputCtx, outputCtx) {
+  let width = canvas.width
+  let height = canvas.height
+  // 1. Get pixel data from input
+  const imageData = inputCtx.getImageData(0, 0, width, height);
+  const data = imageData.data;
 
-    if (flickerStrength > 0) {
-    // Light flicker
-    ctx.fillStyle = `rgba(255, 255, 255, ${flickerStrength})`;
-    } else {
-    // Dark flicker
-    ctx.fillStyle = `rgba(0, 0, 0, ${Math.abs(flickerStrength)})`;
-    }
+  // 2. Apply sepia tone with grayscale base
+  for (let i = 0; i < data.length; i += 4) {
+    const r = data[i];
+    const g = data[i + 1];
+    const b = data[i + 2];
 
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    const gray = 0.3 * r + 0.59 * g + 0.11 * b;
 
-  
-    // 5. Add vignette (classic vintage look)
-    const gradient = ctx.createRadialGradient(
-      canvas.width / 2,
-      canvas.height / 2,
-      canvas.width * 0.3,
-      canvas.width / 2,
-      canvas.height / 2,
-      canvas.width * 0.75
-    );
-    gradient.addColorStop(0, 'rgba(0, 0, 0, 0)');
-    gradient.addColorStop(1, 'rgba(0, 0, 0, 0.3)');
+    data[i]     = Math.min(255, gray * 1.07); // R
+    data[i + 1] = Math.min(255, gray * 0.74); // G
+    data[i + 2] = Math.min(255, gray * 0.43); // B
+  }
 
-    drawFilmBorder()
-  
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  // 3. Put the modified image data on the output context
+  outputCtx.putImageData(imageData, 0, 0);
+
+  // 4. Add grain
+  const grainStrength = 20;
+  const grainDensity = 0.13;
+  for (let i = 0; i < width * height * grainDensity; i++) {
+    const x = Math.floor(Math.random() * width);
+    const y = Math.floor(Math.random() * height);
+    const intensity = (Math.random() - 0.5) * grainStrength;
+    outputCtx.fillStyle = `rgba(${intensity}, ${intensity}, ${intensity}, 0.1)`;
+    outputCtx.fillRect(x, y, 1, 1);
+  }
+
+  // 5. Flicker effect
+  const flickerStrength = (Math.random() - 0.5) * 0.1;
+  if (flickerStrength > 0) {
+    outputCtx.fillStyle = `rgba(255, 255, 255, ${flickerStrength})`;
+  } else {
+    outputCtx.fillStyle = `rgba(0, 0, 0, ${Math.abs(flickerStrength)})`;
+  }
+  outputCtx.fillRect(0, 0, width, height);
+
+  // 6. Vignette
+  const gradient = outputCtx.createRadialGradient(
+    width / 2, height / 2, width * 0.3,
+    width / 2, height / 2, width * 0.75
+  );
+  gradient.addColorStop(0, 'rgba(0, 0, 0, 0)');
+  gradient.addColorStop(1, 'rgba(0, 0, 0, 0.3)');
+
+  outputCtx.fillStyle = gradient;
+  outputCtx.fillRect(0, 0, width, height);
+
+  // 7. Draw border (call externally if needed, or modify this)
+  drawFilmBorder(outputCtx);
 }
+
   
-function neonCyberFilter() {
-    // 1. Draw base video
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-  
-    // 2. Heavy dark overlay
-    ctx.save();
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.65)'; // More darkness
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.restore();
-  
-    // 3. Extract pixel data for edges
-    const frame = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const data = frame.data;
-    const grayscale = new Uint8ClampedArray(canvas.width * canvas.height);
-  
-    for (let i = 0; i < data.length; i += 4) {
-      grayscale[i / 4] = 0.3 * data[i] + 0.59 * data[i + 1] + 0.11 * data[i + 2];
+function neonFilter(inputCtx, outputCtx) {
+  const width = inputCtx.canvas.width;
+  const height = inputCtx.canvas.height;
+
+  // 1. Draw base input onto output
+  outputCtx.drawImage(inputCtx.canvas, 0, 0, width, height);
+
+  // 2. Heavy dark overlay
+  outputCtx.save();
+  outputCtx.fillStyle = 'rgba(0, 0, 0, 0.50)';
+  outputCtx.fillRect(0, 0, width, height);
+  outputCtx.restore();
+
+  // 3. Extract pixel data for edges
+  const frame = outputCtx.getImageData(0, 0, width, height);
+  const data = frame.data;
+  const grayscale = new Uint8ClampedArray(width * height);
+
+  for (let i = 0; i < data.length; i += 4) {
+    grayscale[i / 4] = 0.3 * data[i] + 0.59 * data[i + 1] + 0.11 * data[i + 2];
+  }
+
+  // 4. Edge detection
+  const edges = new Uint8ClampedArray(grayscale.length);
+  for (let y = 1; y < height - 1; y++) {
+    for (let x = 1; x < width - 1; x++) {
+      const i = y * width + x;
+      const gx = grayscale[i - 1] - grayscale[i + 1];
+      const gy = grayscale[i - width] - grayscale[i + width];
+      const mag = Math.sqrt(gx * gx + gy * gy);
+      edges[i] = Math.min(255, mag * 3.5);
     }
-  
-    const edges = new Uint8ClampedArray(grayscale.length);
-    for (let y = 1; y < canvas.height - 1; y++) {
-      for (let x = 1; x < canvas.width - 1; x++) {
-        const i = y * canvas.width + x;
-        const gx = grayscale[i - 1] - grayscale[i + 1];
-        const gy = grayscale[i - canvas.width] - grayscale[i + canvas.width];
-        const mag = Math.sqrt(gx * gx + gy * gy);
-        edges[i] = Math.min(255, mag * 3.5);
+  }
+
+  // 5. Volume pulse detection
+  analyser.getByteFrequencyData(frequencyData);
+  const avg = frequencyData.reduce((a, b) => a + b, 0) / frequencyData.length;
+  const pulse = Math.min(1, avg / 128);
+
+  // 6. Glow effect
+  const glowAlpha = 0.4 + 0.6 * pulse;
+  const glowSize = 1.5 + 2.5 * pulse;
+
+  outputCtx.save();
+  outputCtx.globalCompositeOperation = 'lighter';
+  outputCtx.fillStyle = `rgba(0, 255, 255, ${glowAlpha})`;
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const i = y * width + x;
+      if (edges[i] > 50) {
+        outputCtx.fillRect(x, y, glowSize, glowSize);
       }
     }
+  }
+
+  outputCtx.restore();
+
+  // 7. Vignette overlay
+  const gradient = outputCtx.createRadialGradient(
+    width / 2, height / 2, width * 0.3,
+    width / 2, height / 2, width * 0.85
+  );
+  gradient.addColorStop(0, 'rgba(0,0,0,0)');
+  gradient.addColorStop(1, 'rgba(0,0,0,0.3)');
+  outputCtx.fillStyle = gradient;
+  outputCtx.fillRect(0, 0, width, height);
+}
+
   
-    // 4. Volume pulse detection
-    analyser.getByteFrequencyData(frequencyData);
-    const avg = frequencyData.reduce((a, b) => a + b, 0) / frequencyData.length;
-    const pulse = Math.min(1, avg / 128);
-  
-    // 5. Pulse variables
-    const glowAlpha = 0.4 + 0.6 * pulse; // Opacity changes with volume
-    const glowSize = 1.5 + 2.5 * pulse;  // Size of each glow pixel grows with volume
-  
-    // 6. Draw glow lines
-    ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
-    ctx.fillStyle = `rgba(0, 255, 255, ${glowAlpha})`;
-  
-    for (let y = 0; y < canvas.height; y++) {
-      for (let x = 0; x < canvas.width; x++) {
-        const i = y * canvas.width + x;
-        if (edges[i] > 50) {
-          ctx.fillRect(x, y, glowSize, glowSize);
-        }
-      }
-    }
-  
-    ctx.restore();
-  
-    // 7. Vignette for dramatic effect
-    const gradient = ctx.createRadialGradient(
-      canvas.width / 2, canvas.height / 2, canvas.width * 0.3,
-      canvas.width / 2, canvas.height / 2, canvas.width * 0.85
-    );
-    gradient.addColorStop(0, 'rgba(0,0,0,0)');
-    gradient.addColorStop(1, 'rgba(0,0,0,0.3)');
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-}  
-  
-  // Utility to get volume-based pulse
 function getVolumePulse() {
     analyser.getByteFrequencyData(frequencyData);
     const avg = frequencyData.reduce((a, b) => a + b, 0) / frequencyData.length;
@@ -654,116 +718,132 @@ function getVolumePulse() {
   
 let glitchTimer = 0;
 
-function glitchFilter() {
-  // 1. Draw video frame
-  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+function glitchFilter(inputCtx, outputCtx) {
+  const width = inputCtx.canvas.width;
+  const height = inputCtx.canvas.height;
+  outputCtx.drawImage(inputCtx.canvas, 0, 0, width, height);
 
-  // 2. Get current audio pulse
+  const frame = outputCtx.getImageData(0, 0, width, height);
+  const src = frame.data;
+  const dest = new Uint8ClampedArray(src); // Copy for manipulation
+
+  // Audio pulse
   analyser.getByteFrequencyData(frequencyData);
   const avg = frequencyData.reduce((a, b) => a + b, 0) / frequencyData.length;
   const pulse = Math.min(1, avg / 128);
 
-  // 3. Occasionally trigger glitch
-  if (Math.random() < 0.05 + pulse * 0.1) {
-    glitchTimer = 5 + Math.floor(pulse * 10); // Frames of glitch
+  // === 1. RGB Aberration ===
+  const rOffset = Math.floor(pulse * 5 + 2);
+  const gOffset = -Math.floor(pulse * 3);
+  const bOffset = Math.floor(pulse * 8);
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const i = (y * width + x) * 4;
+
+      const rIndex = ((y * width + Math.min(width - 1, x + rOffset)) * 4);
+      const gIndex = ((y * width + Math.min(width - 1, x + gOffset)) * 4);
+      const bIndex = ((y * width + Math.min(width - 1, x + bOffset)) * 4);
+
+      dest[i]     = src[rIndex];     // Red
+      dest[i + 1] = src[gIndex + 1]; // Green
+      dest[i + 2] = src[bIndex + 2]; // Blue
+      dest[i + 3] = src[i + 3];      // Alpha
+    }
   }
 
-  // 4. Apply glitch effects if active
-  if (glitchTimer > 0) {
-    const frame = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const data = frame.data;
+  // === 2. Optional: Noise Flicker ===
+  const noiseDensity = 100 * pulse;
+  for (let i = 0; i < noiseDensity; i++) {
+    const x = Math.floor(Math.random() * width);
+    const y = Math.floor(Math.random() * height);
+    const i4 = (y * width + x) * 4;
+    const noise = Math.floor(Math.random() * 50);
+    dest[i4] += noise;
+    dest[i4 + 1] += noise;
+    dest[i4 + 2] += noise;
+  }
 
-    // --- RGB Channel Offset ---
-    const offset = Math.floor(4 + pulse * 6);
-    for (let y = 0; y < canvas.height; y++) {
-      for (let x = 0; x < canvas.width - offset; x++) {
-        const i = (y * canvas.width + x) * 4;
-        const r = data[i];
-        const g = data[i + 1];
-        const b = data[i + 2];
-
-        // Offset red channel
-        const oi = (y * canvas.width + (x + offset)) * 4;
-        data[oi] = r;
-        data[oi + 1] = g;
-        data[oi + 2] = b;
+  // === 3. Optional: Scanline Flicker ===
+  for (let y = 0; y < height; y += 2) {
+    if (Math.random() < 0.3 * pulse) {
+      for (let x = 0; x < width; x++) {
+        const i = (y * width + x) * 4;
+        dest[i] *= 0.8;
+        dest[i + 1] *= 0.8;
+        dest[i + 2] *= 0.8;
       }
     }
+  }
 
-    // --- Horizontal Tearing ---
-    for (let i = 0; i < 5; i++) {
+  // === 4. Output the modified pixel buffer ===
+  const outputImage = new ImageData(dest, width, height);
+  outputCtx.putImageData(outputImage, 0, 0);
+
+  // === 5. Now do Horizontal Slice Shifts on final canvas ===
+  if (pulse > 0.25) {
+    let sliceCount = Math.floor(pulse * 8);
+    for (let i = 0; i < sliceCount; i++) {
       const sliceHeight = 5 + Math.random() * 10;
-      const y = Math.floor(Math.random() * (canvas.height - sliceHeight));
-      const dx = Math.random() * 30 - 15;
+      const y = Math.floor(Math.random() * (height - sliceHeight));
+      const dx = (Math.random() - 0.5) * 30;
 
-      const slice = ctx.getImageData(0, y, canvas.width, sliceHeight);
-      ctx.putImageData(slice, dx, y);
+      const slice = outputCtx.getImageData(0, y, width, sliceHeight);
+      outputCtx.putImageData(slice, dx, y);
     }
-
-    // --- Vertical Jitter ---
-    const jitter = Math.random() * 10 - 5;
-    ctx.translate(0, jitter);
-
-    glitchTimer--;
   }
-
-  // 5. White flash on very loud hits
-  if (pulse > 0.15) {
-    ctx.save();
-    ctx.fillStyle = `rgba(255,255,255,${(pulse - 0.9) * 5})`;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.restore();
-  }
-
-  // Reset transform just in case
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
 }
+
+
 
 let vhsGlitchTimer = 0;
 
-function vhsFilter() {
-  // 1. Base video draw
-  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+function vhsFilter(inputCtx, outputCtx) {
+  let width = canvas.width
+  let height = canvas.height
+
+  // 1. Base video draw from inputCtx
+  outputCtx.drawImage(inputCtx.canvas, 0, 0, width, height);
 
   // 2. Horizontal scanlines
-  ctx.save();
-  ctx.strokeStyle = 'rgba(0, 0, 0, 0.1)';
-  ctx.lineWidth = 2
-  for (let y = 0; y < canvas.height; y += 4) {
-    ctx.beginPath();
-    ctx.moveTo(0, y + Math.random()); // tiny jitter
-    ctx.lineTo(canvas.width, y + Math.random());
-    ctx.stroke();
+  outputCtx.save();
+  outputCtx.strokeStyle = 'rgba(0, 0, 0, 0.1)';
+  outputCtx.lineWidth = 2;
+  for (let y = 0; y < height; y += 4) {
+    outputCtx.beginPath();
+    outputCtx.moveTo(0, y + Math.random());
+    outputCtx.lineTo(width, y + Math.random());
+    outputCtx.stroke();
   }
-  ctx.restore();
+  outputCtx.restore();
 
   // 3. Flickering noise
   const noiseDensity = 200;
-  ctx.save();
+  outputCtx.save();
   for (let i = 0; i < noiseDensity; i++) {
-    const x = Math.random() * canvas.width;
-    const y = Math.random() * canvas.height;
-    ctx.fillStyle = `rgba(255,255,255,${Math.random() * 0.05})`;
-    ctx.fillRect(x, y, 1, 1);
+    const x = Math.random() * width;
+    const y = Math.random() * height;
+    outputCtx.fillStyle = `rgba(255,255,255,${Math.random() * 0.05})`;
+    outputCtx.fillRect(x, y, 1, 1);
   }
-  ctx.restore();
+  outputCtx.restore();
 
-  // 4. Color smear (manual RGB shift using composite)
+  // 4. Color smear (manual RGB shift)
   const smear = 2;
-  ctx.save();
-  ctx.globalCompositeOperation = "lighter";
-  ctx.globalAlpha = 0.5;
-  ctx.filter = "brightness(0.9)";
+  outputCtx.save();
+  outputCtx.globalCompositeOperation = "lighter";
+  outputCtx.globalAlpha = 0.5;
+  outputCtx.filter = "brightness(0.9)";
 
   // Red smear
-  ctx.drawImage(video, smear, 0, canvas.width, canvas.height);
+  outputCtx.drawImage(inputCtx.canvas, smear, 0, width, height);
   // Blue smear
-  ctx.drawImage(video, -smear, smear, canvas.width, canvas.height);
+  outputCtx.drawImage(inputCtx.canvas, -smear, smear, width, height);
 
-  ctx.restore();
-  ctx.globalAlpha = 1;
-  ctx.filter = "none";
-  ctx.globalCompositeOperation = "source-over";
+  outputCtx.restore();
+  outputCtx.globalAlpha = 1;
+  outputCtx.filter = "none";
+  outputCtx.globalCompositeOperation = "source-over";
 
   // 5. Random glitch slice tear
   if (vhsGlitchTimer <= 0 && Math.random() < 0.03) {
@@ -771,95 +851,102 @@ function vhsFilter() {
   }
   if (vhsGlitchTimer > 0) {
     const sliceHeight = 5 + Math.random() * 10;
-    const y = Math.floor(Math.random() * (canvas.height - sliceHeight));
+    const y = Math.floor(Math.random() * (height - sliceHeight));
     const dx = (Math.random() - 0.5) * 30;
 
-    const slice = ctx.getImageData(0, y, canvas.width, sliceHeight);
-    ctx.putImageData(slice, dx, y);
+    const slice = outputCtx.getImageData(0, y, width, sliceHeight);
+    outputCtx.putImageData(slice, dx, y);
     vhsGlitchTimer--;
   }
 
   // 6. Subtle vertical wobble
-  const wobble = Math.sin(performance.now() / 80) * 0.6;
-  ctx.translate(0, wobble);
-  ctx.setTransform(1, 0, 0, 1, 0, 0); // reset
+  const wobble = Math.sin(performance.now() / 80);
+  outputCtx.translate(0, wobble);
+  outputCtx.setTransform(1, 0, 0, 1, 0, 0); // reset
 
-  drawTrackingOverlay()
+  drawTrackingOverlay(outputCtx);
 }
 
-function drawTrackingOverlay() {
-    if (Math.random() < 0.01) return; // flicker it sometimes
-    ctx.save();
-    ctx.font = "bold 16px monospace";
-    ctx.fillStyle = "rgba(0,0,0,0.4)";
-    ctx.fillText("TRACKING", 20, 20);
-    ctx.restore();
+function drawTrackingOverlay(ctx) {
+  if (Math.random() < 0.01) return;
+  ctx.save();
+  ctx.font = "bold 16px monospace";
+  ctx.fillStyle = "rgba(0,0,0,0.4)";
+  ctx.fillText("TRACKING", 20, 20);
+  ctx.restore();
 }
   
 
-function infernoFilter() {
-    // 1. Draw base
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-  
-    // 2. Red/orange glow overlay
-    ctx.save();
-    ctx.globalCompositeOperation = "overlay";
-    ctx.fillStyle = "rgba(255, 80, 0, 0.2)";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.restore();
-  
-    // 3. Heat distortion waves
-    const strength = 0.3;
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const data = imageData.data;
-    const tempCanvas = document.createElement("canvas");
-    const tempCtx = tempCanvas.getContext("2d");
-    tempCanvas.width = canvas.width;
-    tempCanvas.height = canvas.height;
-    tempCtx.putImageData(imageData, 0, 0);
-  
-    const waveAmount = 1.5;
-    for (let y = 0; y < canvas.height; y++) {
-      const offset = Math.sin((performance.now() / 100) + y * 0.1) * waveAmount;
-      ctx.drawImage(tempCanvas,
-        0, y, canvas.width, 1,
-        offset, y, canvas.width, 1);
+function fireFilter(inputCtx, outputCtx) {
+  const inputCanvas = inputCtx.canvas;
+  const width = inputCanvas.width;
+  const height = inputCanvas.height;
+
+  // 1. Draw base
+  const baseFrame = inputCtx.getImageData(0, 0, width, height);
+  outputCtx.putImageData(baseFrame, 0, 0);
+
+  // 2. Red/orange glow overlay
+  outputCtx.save();
+  outputCtx.globalCompositeOperation = "overlay";
+  outputCtx.fillStyle = "rgba(255, 80, 0, 0.2)";
+  outputCtx.fillRect(0, 0, width, height);
+  outputCtx.restore();
+
+  // 3. Heat distortion waves
+  const strength = 0.3;
+  const imageData = outputCtx.getImageData(0, 0, width, height);
+  const tempCanvas = document.createElement("canvas");
+  tempCanvas.width = width;
+  tempCanvas.height = height;
+  const tempCtx = tempCanvas.getContext("2d");
+  tempCtx.putImageData(imageData, 0, 0);
+
+  const waveAmount = 1.5;
+  for (let y = 0; y < height; y++) {
+    const offset = Math.sin((performance.now() / 100) + y * 0.1) * waveAmount;
+    outputCtx.drawImage(
+      tempCanvas,
+      0, y, width, 1,
+      offset, y, width, 1
+    );
+  }
+
+  // 4. Ember particles
+  emberParticles.forEach(p => {
+    p.x += p.vx;
+    p.y += p.vy;
+    p.alpha -= 0.002;
+
+    if (p.alpha <= 0 || p.y < 0 || p.x < 0 || p.x > width) {
+      p.x = Math.random() * width;
+      p.y = Math.random() * height;
+      p.alpha = 0.3 + Math.random() * 0.4;
+      p.size = 1.3 + Math.random() * 2;
+      p.vx = (Math.random() - 0.5) * 0.3;
+      p.vy = -0.2 - Math.random() * 0.4;
     }
 
-    // 2. Draw embers
-    emberParticles.forEach(p => {
-        p.x += p.vx;
-        p.y += p.vy;
-        p.alpha -= 0.002;
-    
-        // Respawn if faded or off-screen
-        if (p.alpha <= 0 || p.y < 0 || p.x < 0 || p.x > canvas.width) {
-          p.x = Math.random() * canvas.width;
-          p.y = Math.random() * canvas.height;
-          p.alpha = 0.3 + Math.random() * 0.4;
-          p.size = 1.3 + Math.random() * 2;
-          p.vx = (Math.random() - 0.5) * 0.3;
-          p.vy = -0.2 - Math.random() * 0.4;
-        }
-    
-        ctx.beginPath();
-        ctx.fillStyle = `rgba(255, 60, 60, ${p.alpha})`;
-        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-        ctx.fill();
-    });
+    outputCtx.beginPath();
+    outputCtx.fillStyle = `rgba(255, 60, 60, ${p.alpha})`;
+    outputCtx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+    outputCtx.fill();
+  });
 
-    analyser.getByteFrequencyData(frequencyData);
-    const avg = frequencyData.reduce((a, b) => a + b, 0) / frequencyData.length;
-    const pulse = avg / 256;
+  // 5. Audio pulse glow
+  analyser.getByteFrequencyData(frequencyData);
+  const avg = frequencyData.reduce((a, b) => a + b, 0) / frequencyData.length;
+  const pulse = avg / 256;
 
-    if (pulse > 0.1) {
-        ctx.save();
-        ctx.globalAlpha = pulse * 0.3;
-        ctx.fillStyle = 'rgba(255, 200, 50, 0.2)';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.restore();
-    }
+  if (pulse > 0.1) {
+    outputCtx.save();
+    outputCtx.globalAlpha = pulse * 0.3;
+    outputCtx.fillStyle = 'rgba(255, 200, 50, 0.2)';
+    outputCtx.fillRect(0, 0, width, height);
+    outputCtx.restore();
+  }
 }
+
 
 let emberParticles = [];
 
@@ -885,30 +972,26 @@ let dreamTime = 0;
 const dreamCanvas = document.createElement('canvas');
 const dreamCtx = dreamCanvas.getContext('2d');
 
-function dreamWarpFilter() {
+function dreamWarpFilter(inputCtx, outputCtx) {
   analyser.getByteFrequencyData(frequencyData);
   const avg = frequencyData.reduce((a, b) => a + b, 0) / frequencyData.length;
-  const pulse = avg / 256; // normalized 0-1 pulse value
-  const intensity = pulse * 5;  // base intensity for waves
+  const pulse = avg / 256;
+  const intensity = pulse * 5;
 
   dreamTime += 0.03 + intensity * 0.1;
 
-  dreamCanvas.width = canvas.width;
-  dreamCanvas.height = canvas.height;
+  const width = inputCtx.canvas.width;
+  const height = inputCtx.canvas.height;
 
-  // Draw video frame into dreamCanvas
-  dreamCtx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  outputCtx.canvas.width = width;
+  outputCtx.canvas.height = height;
 
-  const source = dreamCtx.getImageData(0, 0, canvas.width, canvas.height);
-  const dest = ctx.createImageData(canvas.width, canvas.height);
+  const source = inputCtx.getImageData(0, 0, width, height);
+  const dest = outputCtx.createImageData(width, height);
 
   const srcData = source.data;
   const dstData = dest.data;
-  const width = canvas.width;
-  const height = canvas.height;
 
-  // Calculate scale factor for breathing effect: oscillates between 0.95 and 1.05 based on pulse
-  // Adjust multiplier and base to get desired scale range
   const scaleBase = 1.0;
   const scaleAmplitude = 0.05;
   const scale = scaleBase + scaleAmplitude * Math.sin(pulse * Math.PI * 2);
@@ -921,20 +1004,15 @@ function dreamWarpFilter() {
     for (let x = 0; x < width; x++) {
       const xWaveOffset = Math.cos((x / 30) + dreamTime) * 10 * intensity;
 
-      // Apply the original smooth wave warp
       let warpedX = x + xWaveOffset;
       let warpedY = y + yWaveOffset;
 
-      // Apply breathing scale around center
-      // Vector from center to warped pixel
       let dx = warpedX - centerX;
       let dy = warpedY - centerY;
 
-      // Scale this vector by our scale factor
       dx *= scale;
       dy *= scale;
 
-      // Get final source pixel coords after scaling
       const srcX = Math.max(0, Math.min(width - 1, Math.floor(centerX + dx)));
       const srcY = Math.max(0, Math.min(height - 1, Math.floor(centerY + dy)));
 
@@ -948,160 +1026,315 @@ function dreamWarpFilter() {
     }
   }
 
-  ctx.putImageData(dest, 0, 0);
+  outputCtx.putImageData(dest, 0, 0);
 
   // Hue shimmer effect
   dreamHue = (dreamHue + 0.6 + intensity * 2) % 360;
-  ctx.save();
-  ctx.globalCompositeOperation = 'hue';
-  ctx.fillStyle = `hsl(${dreamHue}, 100%, 50%)`;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.restore();
+  outputCtx.save();
+  outputCtx.globalCompositeOperation = 'hue';
+  outputCtx.fillStyle = `hsl(${dreamHue}, 100%, 50%)`;
+  outputCtx.fillRect(0, 0, width, height);
+  outputCtx.restore();
 }
 
+let shockwaveRadius = 0;
+let shockwaveActive = false;
+let shockwavePulseStrength = 0;
 
+let shockwaves = []; // Each shockwave will have { radius, strength }
 
+const volumeHistory = [];
+const waveHistory = 15; // frames to keep
+let lastShockwaveTime = 0;
+const cooldown = 300; // milliseconds cooldown between shockwaves
 
+function getRMS(data) {
+  let sumSquares = 0;
+  for (let i = 0; i < data.length; i++) {
+    const val = data[i] / 255; // normalize 0-1
+    sumSquares += val * val;
+  }
+  return Math.sqrt(sumSquares / data.length);
+}
+
+function triggerShockwave(s) {
+    // your existing code
+    if (shockwaves.length < 10) {
+        shockwaves.push({ radius: 0, maxRadius: canvas.height, speed: 2 + s * 150, strength: s * 1.5 });
+    }
+}
+  
+let prevRMS = 0;
+
+function checkForShockwave() {
+  analyser.getByteFrequencyData(frequencyData);
+  const rms = getRMS(frequencyData);
+
+  const now = performance.now();
+
+  const isSpike = rms > prevRMS && rms > 0.02;
+  const cooldownPassed = (now - lastShockwaveTime) > cooldown;
+
+  if (isSpike && cooldownPassed) {
+    lastShockwaveTime = now;
+    triggerShockwave(rms);
+  }
+
+  prevRMS = rms;
+}
+
+function shockwave(inputCtx, outputCtx) {
+  checkForShockwave(); // still needed for triggering based on audio
+
+  const width = inputCtx.canvas.width;
+  const height = inputCtx.canvas.height;
+
+  const source = inputCtx.getImageData(0, 0, width, height);
+  const dest = outputCtx.createImageData(width, height);
+
+  const srcData = source.data;
+  const dstData = dest.data;
+
+  const cx = width / 2;
+  const cy = height / 2;
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const dx = x - cx;
+      const dy = y - cy;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+
+      let offsetX = 0;
+      let offsetY = 0;
+
+      for (let i = shockwaves.length - 1; i >= 0; i--) {
+        const wave = shockwaves[i];
+        const waveWidth = 20;
+        const distanceFromWave = dist - wave.radius;
+
+        if (Math.abs(distanceFromWave) < waveWidth * 3) {
+          const ripple = Math.sin(distanceFromWave / waveWidth);
+          const factor = ripple * 10 * wave.strength / (dist + 1);
+          offsetX += dx * factor;
+          offsetY += dy * factor;
+        }
+      }
+
+      const srcX = Math.max(0, Math.min(width - 1, Math.floor(x + offsetX)));
+      const srcY = Math.max(0, Math.min(height - 1, Math.floor(y + offsetY)));
+
+      const dstIdx = (y * width + x) * 4;
+      const srcIdx = (srcY * width + srcX) * 4;
+
+      dstData[dstIdx] = srcData[srcIdx];
+      dstData[dstIdx + 1] = srcData[srcIdx + 1];
+      dstData[dstIdx + 2] = srcData[srcIdx + 2];
+      dstData[dstIdx + 3] = 255;
+    }
+  }
+
+  outputCtx.putImageData(dest, 0, 0);
+
+  // Update shockwave positions
+  for (let wave of shockwaves) {
+    wave.radius += wave.speed;
+  }
+
+  // Remove finished shockwaves
+  shockwaves = shockwaves.filter(w => w.radius < w.maxRadius);
+}
+  
+function shake(inputCtx, outputCtx) {
+  analyser.getByteTimeDomainData(timeDomainData);
+  const currentTime = video.currentTime;
+  let scale = 1, dx = 0, dy = 0;
+
+  // Calculate RMS (root mean square) of the waveform
+  let sumSquares = 0;
+  for (let i = 0; i < timeDomainData.length; i++) {
+    const norm = (timeDomainData[i] - 128) / 128;
+    sumSquares += norm * norm;
+  }
+  const rms = Math.sqrt(sumSquares / timeDomainData.length);
+
+  // Shake activation logic
+  if (shakeEnabled && rms > shakeThreshold && !isShaking) {
+    isShaking = true;
+    shakeEndTime = currentTime + 0.2 * (rms - shakeThreshold) * 10;
+    currentShakeIntensity = rms * 15;
+  }
+
+  if (isShaking && !video.paused) {
+    const maxShake = currentShakeIntensity * 7;
+    dx = (Math.random() - 0.5) * maxShake;
+    dy = (Math.random() - 0.5) * maxShake;
+    scale = 1 + Math.random() * 0.03;
+
+    if (currentTime > shakeEndTime) {
+      isShaking = false;
+      currentShakeIntensity = 0;
+    }
+  }
+
+  // Apply transformation and draw to outputCtx
+  const { width, height } = inputCtx.canvas;
+
+  outputCtx.save();
+  const centerX = width / 2;
+  const centerY = height / 2;
+
+  outputCtx.translate(centerX + dx, centerY + dy);
+  outputCtx.scale(scale, scale);
+  outputCtx.translate(-centerX, -centerY);
+
+  outputCtx.drawImage(inputCtx.canvas, 0, 0);
+  outputCtx.restore();
+}
+
+function wobble(inputCtx, outputCtx) {
+  // --- Wobble / Warp based on bass ---
+  analyser.getByteFrequencyData(frequencyData);
+  let bassSum = 0;
+  for (let i = 0; i < 10; i++) bassSum += frequencyData[i];
+  const bassAvg = bassSum / 10;
+
+  bassHistory.push(bassAvg);
+  if (bassHistory.length > historyLength) bassHistory.shift();
+
+  const bassMean = bassHistory.reduce((a, b) => a + b, 0) / bassHistory.length;
+  const delta = bassAvg - bassMean;
+
+  if (wobbleEnabled && bassAvg > 130 && delta > 3) {
+    const normalized = Math.min((bassAvg - 130) / 100, 1);
+    warpIntensity = Math.max(warpIntensity, normalized ** 1.5);
+  }
+
+  warpIntensity *= 0.95;
+  if (warpIntensity < 0.01) warpIntensity = 0;
+
+  outputCtx.save();
+  outputCtx.clearRect(0, 0, canvas.width, canvas.height);
+
+  if (wobbleEnabled && warpIntensity > 0) {
+    const t = performance.now() / 1000;
+    const wobbleX = Math.sin(t * 20) * 0.08 * warpIntensity;
+    const wobbleY = Math.cos(t * 15) * 0.08 * warpIntensity;
+    const scale = 1 + 0.06 * warpIntensity;
+
+    outputCtx.translate(canvas.width / 2, canvas.height / 2);
+    outputCtx.scale(scale + wobbleX, scale + wobbleY);
+    outputCtx.translate(-canvas.width / 2, -canvas.height / 2);
+  }
+
+  outputCtx.drawImage(inputCtx.canvas, 0, 0);
+  outputCtx.restore();
+}
+
+function pulse(inputCtx, outputCtx) {
+  analyser.getByteFrequencyData(frequencyData);
+  const avgVolume = frequencyData.reduce((a, b) => a + b, 0) / frequencyData.length;
+  const pulse = Math.min(avgVolume / 256, 1);
+  const pulseScale = 1 + pulse * 0.6;
+
+  outputCtx.save();
+  outputCtx.clearRect(0, 0, canvas.width, canvas.height);
+
+  outputCtx.translate(canvas.width / 2, canvas.height / 2);
+  outputCtx.scale(pulseScale, pulseScale);
+  outputCtx.translate(-canvas.width / 2, -canvas.height / 2);
+
+  outputCtx.drawImage(inputCtx.canvas, 0, 0);
+
+  outputCtx.restore();
+}
+
+const effectCanvases = [];
+const effectContexts = [];
+
+function ensureEffectCanvases(count) {
+  while (effectCanvases.length < count) {
+    const c = document.createElement('canvas');
+    c.width = canvas.width;
+    c.height = canvas.height;
+    effectCanvases.push(c);
+    effectContexts.push(c.getContext('2d'));
+  }
+  for (let c of effectCanvases) {
+    c.width = canvas.width;
+    c.height = canvas.height;
+  }
+}
 
 function drawVideo() {
-    ctx.save();
+  // Build active effects list
+  const activeEffects = [];
 
-    if (enableWobble && warpIntensity > 0) {
-        const t = performance.now() / 1000;
-        const wobbleX = Math.sin(t * 20) * 0.08 * warpIntensity;
-        const wobbleY = Math.cos(t * 15) * 0.08 * warpIntensity;
-        const scale = 1 + 0.06 * warpIntensity;
-      
-        ctx.translate(canvas.width / 2, canvas.height / 2);
-        ctx.scale(scale + wobbleX, scale + wobbleY);
-        ctx.translate(-canvas.width / 2, -canvas.height / 2);
+  if (filterMode !== 'none') {
+    switch (filterMode) {
+      case 'retroCamcorder': activeEffects.push(retroCamcorderFilter); break;
+      case 'darkMetal': activeEffects.push(metalFilter); break;
+      case 'glow80s': activeEffects.push(glowFilter); break;
+      case 'psychedelicPulse': activeEffects.push(psychedelicFilter); break;
+      case 'grunge': activeEffects.push(grungeFilter); break;
+      case 'sepiaFilm': activeEffects.push(sepiaFilmFilter); break;
+      case 'neon': activeEffects.push(neonFilter); break;
+      case 'glitch': activeEffects.push(glitchFilter); break;
+      case 'vhs': activeEffects.push(vhsFilter); break;
+      case 'fire': activeEffects.push(fireFilter); break;
+      case 'dream': activeEffects.push(dreamWarpFilter); break;
     }
+  }
 
-    if (pulseEnabled) {
-        analyser.getByteFrequencyData(frequencyData);
-        const avgVolume = frequencyData.reduce((a, b) => a + b, 0) / frequencyData.length;
-        const pulse = Math.min(avgVolume / 256, 1); // normalized
+  if (shakeEnabled) activeEffects.push(shake);
+  if (wobbleEnabled) activeEffects.push(wobble);
+  if (pulseEnabled) activeEffects.push(pulse);
+  if (shockwaveEnabled) activeEffects.push(shockwave);
 
-        const pulseScale = 1 + pulse * 0.6;
-        ctx.translate(canvas.width / 2, canvas.height / 2);
-        ctx.scale(pulseScale, pulseScale);
-        ctx.translate(-canvas.width / 2, -canvas.height / 2);
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    }
+  // Prepare canvases, one more than number of effects
+  ensureEffectCanvases(activeEffects.length + 1);
 
+  // Start pipeline: draw raw video frame to first canvas
+  effectContexts[0].drawImage(video, 0, 0, canvas.width, canvas.height);
 
-    if (filterMode === 'retroCamcorder') {
-        retroCamcorderFilter();
-    } else if (filterMode === 'darkMetal') {
-        metalFilter();
-    } else if (filterMode === 'glow80s') {
-        glowFilter()
-    } else if (filterMode === 'psychedelicPulse') {
-        psychedelicFilter();
-    } else if (filterMode === 'grunge') {
-        grungeFilter()
-    } else if (filterMode === 'sepiaFilm') {
-        sepiaFilmFilter()
-    } else if (filterMode === 'neon') {
-        neonCyberFilter();
-    } else if (filterMode === 'glitch') {
-        glitchFilter()
-    } else if (filterMode === "vhs") {
-        vhsFilter()
-    } else if(filterMode === 'fire') {
-        infernoFilter()
-    } else if (filterMode === 'dream') {
-        dreamWarpFilter()
-    } else if (filterMode === 'none') {
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
-    }
+  // Run effects chain
+  for (let i = 0; i < activeEffects.length; i++) {
+    activeEffects[i](effectContexts[i], effectContexts[i + 1]);
+  }
 
-    ctx.restore()
-}
-  
-  
+  // Draw final output to main canvas
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  if (activeEffects.length > 0) {
+    ctx.drawImage(effectCanvases[activeEffects.length], 0, 0);
+  } else {
+    // No effects active, just draw video directly
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  }
+} 
 
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    analyser.getByteFrequencyData(frequencyData)
-    analyser.getByteTimeDomainData(timeDomainData)
-
-    const currentTime = video.currentTime;
-
     frameCount = (frameCount || 0) + 1;
 
-    // Get bass avg (bins 0–10)
-    let bassSum = 0;
-    for (let i = 0; i < 10; i++) {
-        bassSum += frequencyData[i];
-    }
-    const bassAvg = bassSum / 10;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
 
-    // Add to history
-    bassHistory.push(bassAvg);
-    if (bassHistory.length > historyLength) bassHistory.shift();
-
-    // Compute moving average
-    const bassMean = bassHistory.reduce((a, b) => a + b, 0) / bassHistory.length;
-
-    // Compare current to average
-    const delta = bassAvg - bassMean;
-
-    if (enableWobble && bassAvg > 130 && delta > 3) {
-        const normalizedImpact = Math.min((bassAvg - 130) / 100, 1);
-        const easedImpact = normalizedImpact ** 1.5;
-        warpIntensity = Math.max(warpIntensity, easedImpact);
-    }
-
-    warpIntensity *= 0.95; // tweak this (0.85–0.97) for speed
-    if (warpIntensity < 0.01) warpIntensity = 0;
-
-    // Compute RMS (root mean square) = signal energy
-    let sumSquares = 0;
-    for (let i = 0; i < timeDomainData.length; i++) {
-        const norm = (timeDomainData[i] - 128) / 128;
-        sumSquares += norm * norm;
-    }
-    const rms = Math.sqrt(sumSquares / timeDomainData.length);
-
-    // If volume spike, trigger shake
-    if (shakeEnabled && rms > shakeThreshold && !isShaking) {
-        isShaking = true;
-        shakeEndTime = video.currentTime + 0.2 * (rms - shakeThreshold) * 10;
-        currentShakeIntensity = rms * 15; // scale for visual effect
-    }
-
-    let scale = 1
-    let dx = 0, dy = 0;
-    if (isShaking && !video.paused) {
-        const maxShake = currentShakeIntensity * 7;
-        dx = (Math.random() - 0.5) * maxShake;
-        dy = (Math.random() - 0.5) * maxShake;
-        scale = 1 + Math.random() * 0.03
-        if (video.currentTime > shakeEndTime) {
-            isShaking = false;
-            currentShakeIntensity = 0;
-            scale = 1
-        }
-    }
-
+    // --- Apply camera transforms for shake ---
     ctx.save();
-    ctx.scale(scale, scale)
-    ctx.translate(dx, dy);
-    drawVideo()
+    drawVideo();
     ctx.restore();
 
-    if (currentMode === 'waveform') {
-        drawWaveform();
-    } else if (currentMode === 'bars') {
-        drawFrequencyBars();
-    } else if (currentMode === 'radial') {
-        drawRadialVisualizer()
+    // --- Visualizers (overlays) ---
+    switch (currentMode) {
+        case 'waveform': drawWaveform(); break;
+        case 'bars': drawFrequencyBars(); break;
+        case 'radial1': drawRadialVisualizer1(); break;
+        case 'eq1': drawEQBarsVisualizer1(); break;
+        case 'eq2': drawEQBarsVisualizer2(); break;
     }
 
     requestAnimationFrame(draw);
 }
+
 
 let baseHue = 200;
 let baseS = 100
@@ -1222,7 +1455,7 @@ function drawFrequencyBars() {
     const barWidth = 4;
     const gap = 0;
     const totalBars = Math.floor(canvas.width / (barWidth + gap));
-    const barHeightMultiplier = 2;
+    const barHeightMultiplier = 0.7;
   
     ctx.save();
 
@@ -1247,15 +1480,15 @@ function drawFrequencyBars() {
     ctx.restore();
 }
 
-function drawRadialVisualizer() {
+function drawRadialVisualizer1() {
     analyser.getByteFrequencyData(frequencyData);
     
-    const centerX = canvas.width / 2;
+    const centerX = canvas.width / 2 + visualizerXOffset;
     const centerY = canvas.height / 2 + visualizerYOffset;
-    const radius = Math.min(centerX, centerY) * 0.25;
-    const barCount = 256;
+    const radius = 40;
+    const barCount = 200;
     const barWidth = 2;
-    const barHeightMultiplier = 1;
+    const barHeightMultiplier = 0.3;
   
     const angleStep = (Math.PI * 2) / barCount;
 
@@ -1268,8 +1501,9 @@ function drawRadialVisualizer() {
     ctx.translate(centerX, centerY);
   
     for (let i = 0; i < barCount; i++) {
-      const value = frequencyData[i];
-      const barHeight = value * barHeightMultiplier;
+      const value = frequencyData[Math.floor(i / 2)];
+      let barHeight = value * barHeightMultiplier;
+
       const angle = i * angleStep;
   
       const x = Math.cos(angle) * radius;
@@ -1290,8 +1524,91 @@ function drawRadialVisualizer() {
     }
   
     ctx.restore();
+}  
+
+function drawEQBarsVisualizer2() {
+  analyser.getByteFrequencyData(frequencyData);
+
+  const barCount = 2 // Adjust based on canvas width
+  const barSpacing = 4;
+  const barWidth = 20
+
+  const segmentHeight = 8; // Height of each block segment
+  const segmentSpacing = 2;
+  const maxSegments = Math.floor(canvas.height / (segmentHeight + segmentSpacing) / 3);
+
+  ctx.save();
+
+  let dataCount = frequencyData.length
+  let step = Math.floor(dataCount / 4 / barCount)
+
+  for (let i = 0; i < barCount; i++) {
+    const value = frequencyData[i * step];
+    const normalizedValue = value / 255;
+    const segmentCount = Math.floor(normalizedValue * maxSegments);
+
+    const x = i * (barWidth + barSpacing);
+
+    for (let j = 0; j < segmentCount; j++) {
+      const y = canvas.height - (j + 1) * (segmentHeight + segmentSpacing);
+
+      ctx.fillStyle = `hsla(${h}, ${baseS}%, ${baseL}%, 0.85)`;
+      ctx.shadowColor = `hsla(${h}, ${baseS}%, ${baseL}%, 0.4)`;
+      ctx.shadowBlur = 10;
+
+      ctx.fillRect(x, y, barWidth, segmentHeight);
+    }
+  }
+
+  ctx.restore();
+
 }
-  
+
+function drawEQBarsVisualizer1() {
+  analyser.getByteFrequencyData(frequencyData);
+
+  const barCount = Math.floor(canvas.width / 25); // Adjust based on canvas width
+  const barSpacing = 4;
+  const barWidth = (canvas.width - ((barCount - 1) * barSpacing)) / barCount
+
+  const segmentHeight = 8; // Height of each block segment
+  const segmentSpacing = 2;
+  const maxSegments = Math.floor(canvas.height / (segmentHeight + segmentSpacing) / 3);
+
+  ctx.save();
+
+  let dataCount = frequencyData.length
+  let step = Math.floor(dataCount / 2 / barCount)
+
+  for (let i = 0; i < barCount; i++) {
+    const value = frequencyData[i * step];
+    const normalizedValue = value / 255;
+    const segmentCount = Math.floor(normalizedValue * maxSegments);
+
+    const x = i * (barWidth + barSpacing);
+
+    for (let j = 0; j < segmentCount; j++) {
+      const y = canvas.height - (j + 1) * (segmentHeight + segmentSpacing);
+
+      let segmentHue = h + Math.floor(Math.floor(j / 2) * 10) % 360
+
+      if (colorShiftEnabled && !video.paused && isShaking) {
+        const shakeBoost = currentShakeIntensity * 5;
+        segmentHue = (segmentHue + shakeBoost) % 360;
+      }
+
+      ctx.fillStyle = `hsla(${segmentHue}, ${baseS}%, ${baseL}%, 0.85)`;
+      ctx.shadowColor = `hsla(${segmentHue}, ${baseS}%, ${baseL}%, 0.4)`;
+      ctx.shadowBlur = 10;
+
+      ctx.fillRect(x, y, barWidth, segmentHeight);
+    }
+  }
+
+  ctx.restore();
+
+}
+
     
 
 
@@ -1346,3 +1663,9 @@ downloadBtn.addEventListener("click", () => {
   // Start playback
   video.play();
 });
+
+function shareSite() {
+  navigator.clipboard.writeText(window.location.href)
+      .then(() => alert("Link copied bruh"))
+      .catch(err => alert("Failed to copy"));
+}
