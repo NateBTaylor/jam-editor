@@ -1,121 +1,244 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Jam Editor</title>
-    <link rel="stylesheet" href="style.css" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-</head>
-<body>
-    <div id="app">
-        <div class="header">
-            <h1><i>JAM</i> editor</h1>
-            <button onclick="shareSite()">Share This Site</button>
-        </div>
-        <input type="file" accept="video/*" id="videoUploader" />
-        <canvas id="canvas"></canvas>
+@import url('https://fonts.googleapis.com/css2?family=Intel+One+Mono:ital,wght@0,300..700;1,300..700&display=swap');
+
+/* Reset & Base */
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    font-family: 'Intel One Mono', Helvetica, Arial, sans-serif;
+  }
   
-        <div id="video-controls">
-            <div id="seekControl">
-                <label>
-                  <input type="range" id="seekSlider" min="0" max="100" value="0" step="0.01">
-                </label>
-                <div id="timeDisplay">00:00 / 00:00</div>
-            </div>
-            <div class="pause-play">
-                <button onclick="video.play()">Play</button>
-                <button onclick="video.pause()">Pause</button>
-            </div>
-        </div>
+  body {
+    background: #fdf6fa;
+    color: #333;
+    padding: 1rem;
+    min-height: 100vh;
+  }
   
-        <div class="visualizer">
-            <div class="mode-picker">
-                <label for="modeSwitch">Visualizer:</label>
-                <select id="modeSwitch">
-                    <option value="none">None</option>
-                    <option value="bars">Frequency Bars</option>
-                    <option value="waveform">Waveform</option>
-                    <option value="radial1">Radial #1</option>
-                    <option value="eq1">EQ Bars #1</option>
-                    <option value="eq2">EQ Bars #2</option>
-                </select>
-            </div>
-            <div id="colorControl">
-                <label for="colorPicker">Color:</label>
-                <input type="color" id="colorPicker" value="#FD3DB5">
-            </div>
-            <div id="YControl">
-                <label for="YOffset">Vertical Position:
-                  <input type="range" id="YOffset" min="-200" max="200" step="1" value="0">
-                  <span id="YOffsetValue">0</span>
-                </label>
-            </div>
-            <div id="XControl">
-                <label for="XOffset">Horizontal Position:
-                  <input type="range" id="XOffset" min="-200" max="200" step="1" value="0">
-                  <span id="XOffsetValue">0</span>
-                </label>
-            </div>
-        </div>
-
-        <div id="filter-section">
-            <label for="filterMode">Filters:</label>
-            <select id="filterMode">
-                <option value="none">None</option>
-                <option value="glow80s">80s Glow</option>
-                <option value="darkMetal">Dark Metal</option>
-                <option value="retroCamcorder">Retro Camcorder</option>
-                <option value="psychedelicPulse">Psychedelic</option>
-                <option value="grunge">Grunge</option>
-                <option value="sepiaFilm">Vintage Film</option>
-                <option value="neon">Neon</option>
-                <option value="glitch">Glitch</option>
-                <option value="vhs">VHS Tape</option>
-                <option value="fire">Fire</option>
-                <option value="dream">Dream</option>
-            </select>
-        </div>
-
-        <div class="toggles">
-            <h4 id="effects-text">Effects:</h4>
-            <label for="shakeToggle">
-                <input type="checkbox" id="shakeToggle" unchecked>
-                Shake
-            </label>
-
-            <label for="colorShiftToggle">
-                <input type="checkbox" id="colorShiftToggle" unchecked>
-                Color shift to visualizer on shake
-            </label>
-
-            <label for="wobbleToggle">
-                <input type="checkbox" id="wobbleToggle" unchecked />
-                Wobble
-            </label>
-
-            <label for="pulseToggle">
-                <input type="checkbox" id="pulseToggle" unchecked />
-                Pulse
-            </label>
-
-            <label for="shockwaveToggle">
-                <input type="checkbox" id="shockwaveToggle" unchecked>
-                Shockwave
-            </label>
-        </div>
-
-        <div id="shakeControl">
-            <label for="shakeRange">Shake Sensitivity:
-              <input type="range" id="shakeRange" min="0" max="0.5" step="0.005" value="0.1">
-              <span id="shakeValue">0.05</span>
-            </label>
-        </div>
-
-        <button id="downloadProcessed">Record & Download</button>
-        <p id="download-p">After pressing download, wait for the video to play through completely. It has to record the video and then it will download once complete.</p>
-
-    </div>
+  /* App Container */
+  #app {
+    background: white;
+    padding: 1.5rem 2rem;
+    border-radius: 0.75rem;
+    border: 1px solid #f5d0e4;
+    box-shadow: 0 8px 24px rgba(213, 70, 143, 0.1);
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    max-width: 720px;
+    margin: 0 auto;
+  }
   
-    <script src="script.js"></script>
-  </body>
-</html>
+  /* Full-width on mobile */
+  @media (max-width: 600px) {
+    #app {
+      padding: 1rem;
+      border: none;
+      border-radius: 0;
+      box-shadow: none;
+      max-width: none;
+      margin: 0;
+      background: white;
+    }
+
+    body {
+        background:white;
+    }
+  }
+  
+  /* Title */
+  .header {
+    display:flex;
+    flex-direction:row;
+    padding-bottom: 0.5rem;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 2px solid #f5d0e4;
+  }
+
+  h1 {
+    font-size: 1.6rem;
+    font-weight: 700;
+    text-align: center;
+    color: #d5468f;
+  }
+  
+  /* File Upload */
+  input[type="file"] {
+    border: 1.5px solid #d5468f;
+    padding: 0.6rem;
+    border-radius: 0.5rem;
+    width: 100%;
+    background-color: #fff5fa;
+    color: #444;
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s;
+  }
+  
+  input[type="file"]:hover {
+    background-color: #ffe6f1;
+    border-color: #c43c82;
+  }
+  
+  /* Canvas */
+  canvas {
+    max-width: 100%;
+    align-self:center;
+    border-radius: 0.5rem;
+    border: 2px dashed #d5468f;
+    background-color: #fff0f8;
+    box-shadow: 0 0 12px rgba(213, 70, 143, 0.15);
+  }
+  
+  /* Controls */
+  #video-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+  
+  #seekControl {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+  
+  #seekSlider {
+    width: 100%;
+    accent-color: #d5468f;
+  }
+  
+  #timeDisplay {
+    font-size: 0.9rem;
+    color: #777;
+    text-align: right;
+  }
+  
+  /* Buttons */
+  .pause-play {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  
+  button {
+    padding: 0.5rem 1.2rem;
+    background-color: #d5468f;
+    border: none;
+    border-radius: 0.5rem;
+    color: white;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+  }
+  
+  button:hover {
+    background-color: #bb3b7e;
+  }
+  
+  /* Visualizer, Toggles, Filters */
+  .visualizer,
+  .toggles,
+  #filter-section,
+  #shakeControl {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  #shakeRange {
+    accent-color: #d5468f;
+  }
+
+  #filter-section {
+    gap: 0;
+  }
+  
+  .mode-picker,
+  #colorControl,
+  #filter-section label,
+  #shakeControl label {
+    flex: 1 1 100%;
+  }
+
+  
+  select,
+  input[type="color"],
+  input[type="range"] {
+    width: 100%;
+    margin-top: 0.4rem;
+    padding: 0.5rem;
+    border-radius: 0.4rem;
+    border: 1.5px solid #dba7c5;
+    background: #fffafa;
+    color: #333;
+    appearance: none;
+  }
+
+  input[type="color"] {
+    height:2rem;
+  }
+  
+  select:focus,
+  input[type="range"]:focus {
+    outline: 2px solid #d5468f;
+  }
+  
+  .toggles {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.6rem;
+  }
+  
+  .toggles label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 1rem;
+    color: #444;
+  }
+  
+  /* Download Button: Plain but Pretty */
+  #downloadProcessed {
+    background: transparent;
+    border: none;
+    color: #d5468f;
+    font-weight: 700;
+    font-size: 1.1rem;
+    cursor: pointer;
+    align-self: center;
+    padding: 0.5rem 0;
+    transition: color 0.2s ease;
+  }
+  
+  #downloadProcessed:hover {
+    color: #a9306d;
+  }
+
+  #download-p {
+    align-self: center;
+    color: #d5468f;
+  }
+  
+  #YOffset, #XOffset {
+    accent-color: #d5468f;
+  }
+
+  .visualizer {
+    padding: 1rem 0;
+    border-top: 2px solid #f5d0e4;
+    border-bottom: 2px solid #f5d0e4;
+  }
+
+  #filter-section {
+    border-bottom: 2px solid #f5d0e4;
+    padding-bottom:2rem;
+  }
+
+  #effects-text {
+    font-weight: normal;
+  }
