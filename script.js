@@ -1788,6 +1788,8 @@ downloadBtn.addEventListener("click", async () => {
     return;
   }
 
+  alert("After pressing download, wait for the video to play through completely. It has to record the video and then it will download once complete.")
+
   video.muted = false;
   video.currentTime = 0;
 
@@ -1838,6 +1840,8 @@ downloadBtn.addEventListener("click", async () => {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+
+    alert("You might want to convert it from webm to mp4 to watch it. Here is a site: https://www.freeconvert.com/webm-to-mp4")
   };
 
   recorder.start();
@@ -1854,6 +1858,7 @@ downloadBtn.addEventListener("click", async () => {
   // Fallback in case onended doesn't fire
   setTimeout(stopRecording, (video.duration + 0.5) * 1000);
 })
+
 
 
 
