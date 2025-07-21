@@ -215,6 +215,20 @@
     padding: 0.5rem 0;
     transition: color 0.2s ease;
   }
+
+  .sticky-download {
+    position: fixed;
+    bottom: 0;
+    right:0;
+    background: white;
+    padding: 0.5rem 1rem;
+    border-radius: 0.7rem 0rem 0rem 0rem;
+    border-left: 2px solid #f5d0e4;
+    border-top: 2px solid #f5d0e4;
+    display: flex;
+    justify-content: center;
+    z-index: 1000;
+  }
   
   #downloadProcessed:hover {
     color: #a9306d;
