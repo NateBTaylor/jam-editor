@@ -1783,6 +1783,74 @@ downloadBtn.addEventListener("click", () => {
 });
 
 
+const startBtn = document.getElementById("startRecording");
+const stopBtn = document.getElementById("stopRecording");
+
+startBtn.addEventListener("click", () => {
+  if (!video.src) {
+    alert("Upload a video first.");
+    return;
+  }
+
+  video.currentTime = 0;
+
+  const playPromise = video.play();
+
+  if (playPromise !== undefined) {
+    playPromise.then(() => {
+      const canvasStream = canvas.captureStream(30);
+      const videoAudioStream = video.captureStream();
+      const audioTracks = videoAudioStream.getAudioTracks();
+
+      const combinedStream = new MediaStream([
+        ...canvasStream.getVideoTracks(),
+        ...audioTracks
+      ]);
+
+      recordedChunks = [];
+
+      recorder = new MediaRecorder(combinedStream, {
+        mimeType: "video/webm; codecs=vp8"
+      });
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) recordedChunks.push(e.data);
+      };
+
+      recorder.start();
+
+      alert("Recording started. Tap stop to finish.");
+    }).catch((err) => {
+      alert("Autoplay was blocked. Tap the video to play first.");
+      console.error(err);
+    });
+  }
+});
+
+stopBtn.addEventListener("click", () => {
+  if (recorder && recorder.state === "recording") {
+    recorder.onstop = () => {
+      const blob = new Blob(recordedChunks, { type: "video/webm" });
+      const url = URL.createObjectURL(blob);
+
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "processed-video.webm";
+
+      // Show visible link for mobile download
+      a.textContent = "Download video";
+      a.style.display = "block";
+      a.style.marginTop = "10px";
+      document.body.appendChild(a);
+    };
+
+    recorder.stop();
+    video.pause();
+    alert("Recording stopped. Tap the download link.");
+  }
+});
+
+
 
 function shareSite() {
   navigator.clipboard.writeText(window.location.href)
