@@ -5,6 +5,7 @@
     <title>Jam Editor</title>
     <link rel="stylesheet" href="style.css" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.5/dist/ffmpeg.min.js"></script>
 </head>
 <body>
     <div id="app">
@@ -111,11 +112,8 @@
             </div>
         </div>  
 
-        <button id="desktopDownloadProcessed">Record & Download</button>
-        <div id="mobileControls">
-            <button id="startRecording">Start Download</button>
-            <button id="stopRecording">Stop & Download</button>
-        </div>
+        <button id="downloadProcessed">Record & Download</button>
+
         <p id="download-p">After pressing download, wait for the video to play through completely. It has to record the video and then it will download once complete.</p>
     
     </div>
