@@ -1037,6 +1037,103 @@ function dreamWarpFilter(inputCtx, outputCtx) {
   outputCtx.restore();
 }
 
+function lofiFilter(inputCtx, outputCtx) {
+  // Step 1: Draw original video to inputCtx
+  inputCtx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+  // Step 2: Get frequency data
+  analyser.getByteFrequencyData(frequencyData);
+  const averageFreq = frequencyData.reduce((a, b) => a + b, 0) / frequencyData.length;
+  const audioBoost = averageFreq / 255;
+
+  // Step 3: Get frame pixels
+  const frame = inputCtx.getImageData(0, 0, canvas.width, canvas.height);
+  const data = frame.data;
+
+  // Step 4: Apply Lo-Fi Color Filter + Audio Glow
+  for (let i = 0; i < data.length; i += 4) {
+    // Crushed contrast & slight warmth
+    data[i]     = data[i] * 0.9 + 10; // R
+    data[i + 1] = data[i + 1] * 0.85 + 5; // G
+    data[i + 2] = data[i + 2] * 0.8;  // B
+
+    // Optional: Add glow based on beat
+    const glow = audioBoost * 200;
+    data[i]     += glow;
+    data[i + 1] += glow;
+    data[i + 2] += glow;
+  }
+
+  outputCtx.putImageData(frame, 0, 0);
+
+  // Step 5: Add Vignette
+  const gradient = outputCtx.createRadialGradient(
+    canvas.width / 2, canvas.height / 2, canvas.width / 4,
+    canvas.width / 2, canvas.height / 2, canvas.width / 1.1
+  );
+  gradient.addColorStop(0, 'rgba(0, 0, 0, 0)');
+  gradient.addColorStop(1, 'rgba(0, 0, 0, 0.35)');
+  outputCtx.fillStyle = gradient;
+  outputCtx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Step 6: Add optional noise
+  addNoise(outputCtx);
+}
+
+function pixelPulseFilter(inputCtx, outputCtx) {
+  const width = inputCtx.canvas.width;
+  const height = inputCtx.canvas.height;
+
+  // Get frequency data
+  analyser.getByteFrequencyData(frequencyData);
+
+  // Calculate average volume
+  const avg = frequencyData.reduce((sum, val) => sum + val, 0) / frequencyData.length;
+
+  // Map volume to pixel size (e.g., from 2 to 40)
+  const minPixelSize = 2;
+  const maxPixelSize = 40;
+  const pixelSize = Math.floor(
+    minPixelSize + ((avg / 255) * (maxPixelSize - minPixelSize))
+  );
+
+  // Draw current frame to inputCtx
+  const inputCanvas = inputCtx.canvas;
+  const tempCanvas = document.createElement("canvas");
+  const tempCtx = tempCanvas.getContext("2d");
+
+  // Set temp canvas to low resolution
+  tempCanvas.width = width / pixelSize;
+  tempCanvas.height = height / pixelSize;
+
+  // Downscale the input
+  tempCtx.drawImage(inputCanvas, 0, 0, tempCanvas.width, tempCanvas.height);
+
+  // Upscale back to normal size to outputCtx
+  outputCtx.imageSmoothingEnabled = false; // Disable smoothing for pixelation
+  outputCtx.clearRect(0, 0, width, height);
+  outputCtx.drawImage(tempCanvas, 0, 0, tempCanvas.width, tempCanvas.height, 0, 0, width, height);
+
+}
+
+
+// Optional: Grainy texture
+function addNoise(ctx) {
+  const noiseDensity = 0.05;
+  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const data = imageData.data;
+
+  for (let i = 0; i < data.length; i += 4) {
+    const rand = (Math.random() - 0.5) * 30;
+    data[i] += rand;
+    data[i + 1] += rand;
+    data[i + 2] += rand;
+  }
+
+  ctx.putImageData(imageData, 0, 0);
+}
+
+
 let shockwaveRadius = 0;
 let shockwaveActive = false;
 let shockwavePulseStrength = 0;
@@ -1282,6 +1379,8 @@ function drawVideo() {
       case 'vhs': activeEffects.push(vhsFilter); break;
       case 'fire': activeEffects.push(fireFilter); break;
       case 'dream': activeEffects.push(dreamWarpFilter); break;
+      case 'lofi': activeEffects.push(lofiFilter); break;
+      case 'pixelPulse': activeEffects.push(pixelPulseFilter); break;
     }
   }
 
@@ -1616,28 +1715,26 @@ const downloadBtn = document.getElementById("downloadProcessed");
 let recorder;
 let recordedChunks = [];
 
-downloadBtn.addEventListener("click", () => {
+downloadBtn.addEventListener("click", async () => {
   if (!video.src) {
     alert("Please upload and play a video first.");
     return;
   }
 
-  // Restart video from beginning
   video.currentTime = 0;
-  video.play()
 
-  // Create streams
-  const canvasStream = canvas.captureStream(30); // 30 FPS
+  // Prepare streams
+  const canvasStream = canvas.captureStream(30);
   const videoAudioStream = video.captureStream();
   const audioTracks = videoAudioStream.getAudioTracks();
   const combinedStream = new MediaStream([...canvasStream.getVideoTracks(), ...audioTracks]);
 
   recordedChunks = [];
   recorder = new MediaRecorder(combinedStream, {
-    mimeType: "video/webm; codecs=vp9"
+    mimeType: "video/webm; codecs=vp8"
   });
 
-  recorder.ondataavailable = e => {
+  recorder.ondataavailable = (e) => {
     if (e.data.size > 0) recordedChunks.push(e.data);
   };
 
@@ -1648,21 +1745,33 @@ downloadBtn.addEventListener("click", () => {
     const a = document.createElement("a");
     a.href = url;
     a.download = "processed-video.webm";
-    a.click();
+
+    try {
+      a.click();
+    } catch {
+      alert("Tap and hold the link to download the video.");
+      a.textContent = "Download processed video";
+      document.body.appendChild(a);
+    }
 
     URL.revokeObjectURL(url);
   };
 
   recorder.start();
 
-  // Stop when video ends
+  // Safeguard against video.onended not firing
+  const fallbackTimeout = setTimeout(() => {
+    if (recorder.state === "recording") recorder.stop();
+  }, video.duration * 1000 + 500);
+
   video.onended = () => {
-    recorder.stop();
+    clearTimeout(fallbackTimeout);
+    if (recorder.state === "recording") recorder.stop();
   };
 
-  // Start playback
-  video.play();
+  await video.play(); // Required for mobile audio policies
 });
+
 
 function shareSite() {
   navigator.clipboard.writeText(window.location.href)
