@@ -1715,7 +1715,7 @@ const downloadBtn = document.getElementById("downloadProcessed");
 let recorder;
 let recordedChunks = [];
 
-downloadBtn.addEventListener("click", async () => {
+downloadBtn.addEventListener("click", () => {
   if (!video.src) {
     alert("Please upload and play a video first.");
     return;
@@ -1723,54 +1723,65 @@ downloadBtn.addEventListener("click", async () => {
 
   video.currentTime = 0;
 
-  // Prepare streams
-  const canvasStream = canvas.captureStream(30);
-  const videoAudioStream = video.captureStream();
-  const audioTracks = videoAudioStream.getAudioTracks();
-  const combinedStream = new MediaStream([...canvasStream.getVideoTracks(), ...audioTracks]);
+  // 🔑 Call video.play() immediately, then do setup in .then()
+  const playPromise = video.play();
 
-  recordedChunks = [];
-  recorder = new MediaRecorder(combinedStream, {
-    mimeType: "video/webm; codecs=vp8"
-  });
+  if (playPromise !== undefined) {
+    playPromise
+      .then(() => {
+        // Streams after user gesture
+        const canvasStream = canvas.captureStream(30);
+        const videoAudioStream = video.captureStream();
+        const audioTracks = videoAudioStream.getAudioTracks();
+        const combinedStream = new MediaStream([...canvasStream.getVideoTracks(), ...audioTracks]);
 
-  recorder.ondataavailable = (e) => {
-    if (e.data.size > 0) recordedChunks.push(e.data);
-  };
+        recordedChunks = [];
+        recorder = new MediaRecorder(combinedStream, {
+          mimeType: "video/webm; codecs=vp8"
+        });
 
-  recorder.onstop = () => {
-    const blob = new Blob(recordedChunks, { type: "video/webm" });
-    const url = URL.createObjectURL(blob);
+        recorder.ondataavailable = (e) => {
+          if (e.data.size > 0) recordedChunks.push(e.data);
+        };
 
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "processed-video.webm";
+        recorder.onstop = () => {
+          const blob = new Blob(recordedChunks, { type: "video/webm" });
+          const url = URL.createObjectURL(blob);
 
-    try {
-      a.click();
-    } catch {
-      alert("Tap and hold the link to download the video.");
-      a.textContent = "Download processed video";
-      document.body.appendChild(a);
-    }
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = "processed-video.webm";
 
-    URL.revokeObjectURL(url);
-  };
+          try {
+            a.click();
+          } catch {
+            alert("Tap and hold the link to download the video.");
+            a.textContent = "Download processed video";
+            document.body.appendChild(a);
+          }
 
-  recorder.start();
+          URL.revokeObjectURL(url);
+        };
 
-  // Safeguard against video.onended not firing
-  const fallbackTimeout = setTimeout(() => {
-    if (recorder.state === "recording") recorder.stop();
-  }, video.duration * 1000 + 500);
+        recorder.start();
 
-  video.onended = () => {
-    clearTimeout(fallbackTimeout);
-    if (recorder.state === "recording") recorder.stop();
-  };
+        // Fallback timer
+        const fallbackTimeout = setTimeout(() => {
+          if (recorder.state === "recording") recorder.stop();
+        }, video.duration * 1000 + 500);
 
-  await video.play(); // Required for mobile audio policies
+        video.onended = () => {
+          clearTimeout(fallbackTimeout);
+          if (recorder.state === "recording") recorder.stop();
+        };
+      })
+      .catch((error) => {
+        alert("Autoplay was blocked. Please tap the video to start playback.");
+        console.error("Playback error:", error);
+      });
+  }
 });
+
 
 
 function shareSite() {
