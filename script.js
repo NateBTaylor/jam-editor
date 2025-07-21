@@ -1638,6 +1638,11 @@ function drawEQBarsVisualizer2() {
 
   ctx.save();
 
+  if (colorShiftEnabled && !video.paused && isShaking) {
+    const shakeBoost = currentShakeIntensity * 5; // more shake = more color shift
+    h = (h + shakeBoost) % 360;
+  }
+
   let dataCount = frequencyData.length
   let step = Math.floor(dataCount / 4 / barCount)
 
@@ -1675,6 +1680,11 @@ function drawEQBarsVisualizer1() {
   const maxSegments = Math.floor(canvas.height / (segmentHeight + segmentSpacing) / 3);
 
   ctx.save();
+
+  if (colorShiftEnabled && !video.paused && isShaking) {
+    const shakeBoost = currentShakeIntensity * 5; // more shake = more color shift
+    h = (h + shakeBoost) % 360;
+  }
 
   let dataCount = frequencyData.length
   let step = Math.floor(dataCount / 2 / barCount)
