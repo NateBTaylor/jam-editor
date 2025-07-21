@@ -1774,6 +1774,7 @@ function drawEQBarsVisualizer1() {
 // });
 
 const downloadBtn = document.getElementById("downloadProcessed");
+
 let recorder;
 let recordedChunks = [];
 
@@ -1781,30 +1782,29 @@ function isMobile() {
   return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 }
 
-downloadBtn.addEventListener("click", () => {
-  video.muted = false
+downloadBtn.addEventListener("click", async () => {
   if (!video.src) {
     alert("Please upload and play a video first.");
     return;
   }
 
+  video.muted = false;
   video.currentTime = 0;
 
-  // Force user interaction before playing (mobile)
-  // if (isMobile()) {
-  //   video.muted = true;
-  // }
-  video.play();
+  try {
+    await video.play(); // Required for mobile interaction
+  } catch (e) {
+    console.warn("Autoplay failed, user interaction required", e);
+    video.muted = true;
+    await video.play(); // Retry muted
+  }
 
   const canvasStream = canvas.captureStream(30); // 30 FPS
-
   let combinedStream;
 
   if (isMobile()) {
-    // Mobile: only video, no audio
     combinedStream = canvasStream;
   } else {
-    // Desktop: merge video + audio
     const videoAudioStream = video.captureStream();
     const audioTracks = videoAudioStream.getAudioTracks();
     combinedStream = new MediaStream([
@@ -1815,11 +1815,15 @@ downloadBtn.addEventListener("click", () => {
 
   recordedChunks = [];
 
-  recorder = new MediaRecorder(combinedStream, {
-    mimeType: "video/webm; codecs=vp8"
-  });
+  try {
+    recorder = new MediaRecorder(combinedStream, {
+      mimeType: "video/webm; codecs=vp8,opus"
+    });
+  } catch (e) {
+    recorder = new MediaRecorder(combinedStream); // fallback
+  }
 
-  recorder.ondataavailable = e => {
+  recorder.ondataavailable = (e) => {
     if (e.data.size > 0) recordedChunks.push(e.data);
   };
 
@@ -1833,16 +1837,24 @@ downloadBtn.addEventListener("click", () => {
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-
     URL.revokeObjectURL(url);
   };
 
   recorder.start();
 
-  video.onended = () => {
-    recorder.stop();
+  // Safety: stop recorder after video ends or after a timeout
+  const stopRecording = () => {
+    if (recorder && recorder.state !== "inactive") {
+      recorder.stop();
+    }
   };
-});
+
+  video.onended = stopRecording;
+
+  // Fallback in case onended doesn't fire
+  setTimeout(stopRecording, (video.duration + 0.5) * 1000);
+})
+
 
 
 function shareSite() {
