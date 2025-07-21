@@ -1772,6 +1772,7 @@ function isMobile() {
 }
 
 downloadBtn.addEventListener("click", () => {
+  video.muted = false
   if (!video.src) {
     alert("Please upload and play a video first.");
     return;
@@ -1780,9 +1781,9 @@ downloadBtn.addEventListener("click", () => {
   video.currentTime = 0;
 
   // Force user interaction before playing (mobile)
-  if (isMobile()) {
-    video.muted = true;
-  }
+  // if (isMobile()) {
+  //   video.muted = true;
+  // }
   video.play();
 
   const canvasStream = canvas.captureStream(30); // 30 FPS
@@ -1832,8 +1833,6 @@ downloadBtn.addEventListener("click", () => {
     recorder.stop();
   };
 });
-
-
 
 
 function shareSite() {
