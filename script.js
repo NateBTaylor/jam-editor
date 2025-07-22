@@ -1797,6 +1797,8 @@ downloadBtn.addEventListener("click", async () => {
     return;
   }
 
+  alert("Wait for the video to play through before it is downloaded.)
+
   video.muted = false;
   video.currentTime = 0;
 
