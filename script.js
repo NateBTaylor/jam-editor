@@ -1782,7 +1782,16 @@ function isMobile() {
   return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 }
 
+function isSafari() {
+  return /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+}
+
 downloadBtn.addEventListener("click", async () => {
+  if (isSafari()) {
+    alert("Downloading recorded video is not supported in Safari. Please use Chrome or Firefox.");
+    return;
+  }
+
   if (!video.src) {
     alert("Please upload and play a video first.");
     return;
