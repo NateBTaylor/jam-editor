@@ -1788,6 +1788,8 @@ downloadBtn.addEventListener("click", async () => {
     return;
   }
 
+  alert("After pressing download, wait for the video to play through completely. It has to record the video and then it will download once complete.")
+
   video.muted = false;
   video.currentTime = 0;
 
@@ -1831,13 +1833,17 @@ downloadBtn.addEventListener("click", async () => {
     const blob = new Blob(recordedChunks, { type: "video/webm" });
     const url = URL.createObjectURL(blob);
 
+    let newURL = URL.createObjectURL(convertWebMtoMP4(blob))
     const a = document.createElement("a");
-    a.href = url;
+    a.href = newURL;
     a.download = "processed-video.webm";
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    URL.revokeObjectURL(newURL);
+
+    
+    alert("You might want to convert from webm to mp4. Here is a site: https://www.freeconvert.com/webm-to-mp4")
   };
 
   recorder.start();
@@ -1847,6 +1853,7 @@ downloadBtn.addEventListener("click", async () => {
     if (recorder && recorder.state !== "inactive") {
       recorder.stop();
     }
+
   };
 
   video.onended = stopRecording;
@@ -1855,6 +1862,26 @@ downloadBtn.addEventListener("click", async () => {
   setTimeout(stopRecording, (video.duration + 0.5) * 1000);
 })
 
+const { createFFmpeg, fetchFile } = FFmpeg;
+const ffmpeg = createFFmpeg({ log: true });
+
+async function convertWebMtoMP4(webmBlob) {
+  if (!ffmpeg.isLoaded()) {
+    await ffmpeg.load();
+  }
+
+  // Write input file to virtual filesystem
+  ffmpeg.FS('writeFile', 'input.webm', await fetchFile(webmBlob));
+
+  // Convert to MP4 using FFmpeg
+  await ffmpeg.run('-i', 'input.webm', 'output.mp4');
+
+  // Read the result
+  const data = ffmpeg.FS('readFile', 'output.mp4');
+
+  // Convert to real browser-usable Blob
+  return new Blob([data.buffer], { type: 'video/mp4' });
+}
 
 
 function shareSite() {
